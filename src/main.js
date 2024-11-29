@@ -2,13 +2,21 @@ const { invoke } = window.__TAURI__.core;
 const { WebviewWindow } = window.__TAURI__.webviewWindow
 const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow
 const { emitTo } = window.__TAURI__.event
+const { getCurrentWindow } = window.__TAURI__.window;
 
 let greetInputEl;
 let greetMsgEl;
 
 async function greet() {
   // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-  greetMsgEl.textContent = await invoke("greet", { name: greetInputEl.value });
+  try {
+    let result = await invoke("get_files", { strPath: greetInputEl.value });
+    console.log(result);
+    greetMsgEl.textContent = result;
+  } catch (e) {
+    console.log(e);
+    greetMsgEl.textContent = e;
+  }
 }
 
 greetInputEl = document.querySelector("#greet-input");
@@ -45,9 +53,14 @@ newWindowForm.addEventListener('submit', (e) => {
 window.addEventListener("DOMContentLoaded", () => {
 
   const messagesView = document.querySelector('#messages-view')
-  const currentWindow = getCurrentWebviewWindow()
+  const currentWindow = getCurrentWebviewWindow();
   currentWindow.listen('message', (event) => {
     const time = new Date().toLocaleTimeString()
     messagesView.textContent = `${messagesView.textContent}\n[${time}] ${event.payload}`
   })
 });
+
+const appWindow = getCurrentWindow();
+document.getElementById("titlebar-minimize")?.addEventListener('click', () => appWindow.minimize());
+document.getElementById("titlebar-maximize")?.addEventListener('click', () => appWindow.toggleMaximize());
+document.getElementById("titlebar-close")?.addEventListener('click', () => appWindow.close());
