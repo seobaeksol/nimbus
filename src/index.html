@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tauri App</title>
+  <script type="module" src="/main.js" defer></script>
+</head>
+
+<body>
+  <main class="container">
+    <h1>Welcome to Tauri</h1>
+
+    <div class="row">
+      <a href="https://tauri.app" target="_blank">
+        <img src="/assets/tauri.svg" class="logo tauri" alt="Tauri logo" />
+      </a>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" target="_blank">
+        <img src="/assets/javascript.svg" class="logo vanilla" alt="JavaScript logo" />
+      </a>
+    </div>
+    <p>Click on the Tauri logo to learn more about the framework</p>
+
+    <form class="row" id="greet-form">
+      <input id="greet-input" placeholder="Enter a name..." />
+      <button type="submit">Greet</button>
+    </form>
+    <p id="greet-msg"></p>
+    <br />
+
+    <h1>Create new window</h1>
+    <form id="new-window-form">
+      <input id="new-label" placeholder="newLabel" />
+      <input id="new-title" placeholder="New window" />
+      <button type="submit">Create</button>
+    </form>
+
+    <br />
+    <h1>Send a message to a window using its label:</h1>
+    <form id="send-message-form">
+      <input id="send-message" placeholder="message" />
+      <input id="send-label" placeholder="Secondary" />
+      <button type="submit">Send</button>
+    </form>
+
+    <br />
+
+    <h1>Messages received from other windows:</h1>
+    <pre id="messages-view"></pre>
+  </main>
+</body>
+
+</html>
