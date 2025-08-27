@@ -2,13 +2,42 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Documentation Reference System
+
+Use the `@` symbol to reference specific documentation sections quickly:
+
+### Quick References
+- `@setup` - Project setup and development workflow commands
+- `@architecture` - Multi-process architecture and component structure  
+- `@grid-layouts` - Grid layout system (2x2, 2x3, 3x2) and multi-panel interface
+- `@features` - Core features: file management, archives, remote systems, search, viewers
+- `@tech-stack` - Technology stack, dependencies, and build tools
+- `@performance` - Performance targets and optimization guidelines
+- `@security` - Security considerations and development guidelines
+- `@testing` - Testing strategy for unit, integration, E2E, and performance tests
+- `@patterns` - Common development patterns for Tauri commands, components, plugins
+
+### Documentation Files
+- `@docs/multi-panel.md` - Comprehensive multi-panel and grid layout documentation
+- `@docs/architecture.md` - Detailed system architecture with TypeScript interfaces
+- `@docs/api/tauri-commands.md` - Complete Tauri commands API reference
+- `@docs/features/` - Individual feature documentation (archives, search, core-features)
+- `@docs/project/` - Project overview, roadmap, technology stack
+- `@docs/development/getting-started.md` - Detailed development setup guide
+
+### Usage Examples
+- "Reference @grid-layouts for panel arrangement options"
+- "Check @docs/api/tauri-commands.md for file operation commands"
+- "Follow @patterns for adding new Tauri commands"
+- "See @performance for memory and response time targets"
+
 ## Project Overview
 
 Nimbus is a cross-platform modern file manager inspired by Total Commander, built with **Tauri v2.8.4** (Rust backend) and **React 19** (TypeScript frontend). The project follows a multi-process architecture with secure IPC communication between frontend and backend processes.
 
 **Current Status**: Documentation and planning phase - no implementation files exist yet.
 
-## Development Commands
+## @setup - Development Commands
 
 ### Project Setup
 ```bash
@@ -73,7 +102,7 @@ cargo fmt                   # Format Rust code
 cargo clippy                # Rust linting
 ```
 
-## Architecture Overview
+## @architecture - Architecture Overview
 
 ### Multi-Process Design
 - **Frontend Process**: React UI in WebView with TypeScript
@@ -146,7 +175,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - **Safe loading**: libloading with ABI stability
 - **Sandboxing options**: Process isolation, WebAssembly runtime
 
-## Core Features (Planned)
+## @features - Core Features (Planned)
 
 ### File Management
 - Multi-panel tabbed interface with grid layout support (2x2, 2x3, 3x2 grids)
@@ -174,7 +203,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - Hex viewer for binary files
 - Plugin-extensible viewer system
 
-### Grid Layout System
+### @grid-layouts - Grid Layout System
 - **2x2 Grid**: Four panels for development workflows (src, build, test, docs)
 - **2x3 Grid**: Six panels for complex multi-site management
 - **3x2 Grid**: Six panels optimized for version control workflows
@@ -182,7 +211,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - **Grid operations**: Broadcast copy, cascade move, synchronized navigation
 - **Keyboard shortcuts**: Ctrl+G combinations for quick grid switching
 
-## Technology Stack
+## @tech-stack - Technology Stack
 
 ### Core Dependencies
 **Backend (Rust)**:
@@ -209,7 +238,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - **Vitest**: Frontend testing
 - **Cargo**: Rust package management
 
-## Performance Targets
+## @performance - Performance Targets
 
 ### Memory Usage
 - Idle: <50MB RAM
@@ -227,7 +256,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - macOS DMG: <20MB  
 - Linux AppImage: <12MB
 
-## Development Guidelines
+## @security - Development Guidelines
 
 ### Code Organization
 - Use the **unified FileSystem trait** for all storage backends
@@ -241,7 +270,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - Implement **input validation** at IPC boundaries
 - Follow **principle of least privilege** for file system access
 
-### Testing Strategy
+### @testing - Testing Strategy
 - **Unit tests**: Core business logic (Rust) and components (React)
 - **Integration tests**: IPC command flows and file operations
 - **E2E tests**: Complete user workflows with Playwright
@@ -266,7 +295,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - `bradlc.vscode-tailwindcss`
 - `esbenp.prettier-vscode`
 
-## Common Development Patterns
+## @patterns - Common Development Patterns
 
 ### Adding New Tauri Commands
 1. Define command in appropriate `src-tauri/src/commands/*.rs` file
