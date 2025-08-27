@@ -1,0 +1,194 @@
+# Nimbus File Manager - Tauri + React Project
+# Generated .gitignore for optimal development workflow
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Production builds
+/dist/
+/build/
+src-tauri/target/
+src-tauri/gen/
+
+# Development files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+
+# nyc test coverage
+.nyc_output
+
+# Dependency directories
+jspm_packages/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# Parcel-bundler cache (https://parceljs.org/)
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+out
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Vuepress build output
+.vuepress/dist
+
+# Serverless directories
+.serverless/
+
+# FuseBox cache
+.fusebox/
+
+# DynamoDB Local files
+.dynamodb/
+
+# TernJS port file
+.tern-port
+
+# Stores VSCode versions used for testing VSCode extensions
+.vscode-test
+
+# Yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# Rust/Cargo
+# Compiled files
+src-tauri/target/
+
+# Lock files (keep Cargo.lock for applications, ignore for libraries)
+# src-tauri/Cargo.lock (keep for applications)
+
+# Generated files
+src-tauri/gen/
+src-tauri/WixTools/
+
+# Tauri build artifacts
+src-tauri/icons/icon.png
+src-tauri/icons/Square*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns
+# Keep our manually created icons
+!src-tauri/icons/32x32.png
+!src-tauri/icons/128x128.png
+!src-tauri/icons/128x128@2x.png
+!src-tauri/icons/icon.icns
+!src-tauri/icons/icon.ico
+
+# macOS specific
+*.dSYM/
+.AppleDouble
+.LSOverride
+
+# Windows specific
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux specific
+*.AppImage
+*.deb
+*.rpm
+
+# Tauri updater artifacts
+*.tar.gz.sig
+
+# Test artifacts
+/cypress/videos/
+/cypress/screenshots/
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+.temp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Package manager lock files (keep package-lock.json, ignore others if needed)
+# package-lock.json (keep for consistency)
+yarn.lock
+pnpm-lock.yaml
