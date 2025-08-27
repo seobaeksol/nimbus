@@ -179,4 +179,33 @@ impl FileSystem for LocalFileSystem {
             _ => FileError::Io(e),
         })
     }
+
+    async fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<(), FileError> {
+        // Create the destination directory
+        self.create_dir(dst).await?;
+        
+        // List all entries in the source directory
+        let entries = self.list_dir(src).await?;
+        
+        for entry in entries {
+            let src_path = Path::new(&entry.path);
+            let dst_path = dst.join(&entry.name);
+            
+            match entry.file_type {
+                FileType::File => {
+                    self.copy_file(src_path, &dst_path).await?;
+                },
+                FileType::Directory => {
+                    // Recursively copy subdirectory
+                    Box::pin(self.copy_dir_recursive(src_path, &dst_path)).await?;
+                },
+                FileType::Symlink => {
+                    // For now, skip symlinks - could add support later
+                    continue;
+                }
+            }
+        }
+        
+        Ok(())
+    }
 }

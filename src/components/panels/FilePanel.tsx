@@ -341,7 +341,10 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         if (!sourceFile) continue;
 
         const srcPath = sourceFile.path;
-        const dstPath = `${panel.currentPath}/${fileName}`.replace('//', '/');
+        // Construct destination path properly, handling root directory case
+        const dstPath = panel.currentPath === '/' 
+          ? `/${fileName}` 
+          : `${panel.currentPath}/${fileName}`;
 
         if (operation === 'copy') {
           await FileService.copyItem(srcPath, dstPath);
@@ -350,8 +353,18 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         }
       }
 
-      // Refresh both panels
+      // Refresh destination panel
       await loadDirectory(panel.currentPath);
+      
+      // If it was a move operation, also refresh the source panel
+      if (operation === 'move' && sourcePanelId !== panel.id) {
+        // Trigger refresh of source panel by dispatching navigation action
+        const sourcePanel = panels[sourcePanelId];
+        if (sourcePanel) {
+          dispatch(navigateToPath({ panelId: sourcePanelId, path: sourcePanel.currentPath }));
+        }
+      }
+      
       dispatch(endDrag());
       
     } catch (error) {

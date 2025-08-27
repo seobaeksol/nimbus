@@ -79,6 +79,7 @@ pub trait FileSystem: Send + Sync {
     async fn delete_file(&self, path: &Path) -> Result<(), FileError>;
     async fn create_dir(&self, path: &Path) -> Result<(), FileError>;
     async fn delete_dir(&self, path: &Path) -> Result<(), FileError>;
+    async fn copy_dir_recursive(&self, src: &Path, dst: &Path) -> Result<(), FileError>;
 }
 
 /// Utility functions
