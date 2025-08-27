@@ -56,6 +56,66 @@ export class FileService {
   }
 
   /**
+   * Copy a file or directory
+   */
+  static async copyItem(srcPath: string, dstPath: string): Promise<void> {
+    try {
+      await invoke("copy_item", { srcPath, dstPath });
+    } catch (error) {
+      console.error("Failed to copy item:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Move/rename a file or directory
+   */
+  static async moveItem(srcPath: string, dstPath: string): Promise<void> {
+    try {
+      await invoke("move_item", { srcPath, dstPath });
+    } catch (error) {
+      console.error("Failed to move item:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a file or directory
+   */
+  static async deleteItem(path: string): Promise<void> {
+    try {
+      await invoke("delete_item", { path });
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Rename a file or directory
+   */
+  static async renameItem(oldPath: string, newName: string): Promise<void> {
+    try {
+      await invoke("rename_item", { oldPath, newName });
+    } catch (error) {
+      console.error("Failed to rename item:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a new file
+   */
+  static async createFile(path: string, name: string): Promise<void> {
+    try {
+      await invoke("create_file", { path, name });
+    } catch (error) {
+      console.error("Failed to create file:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Greet function for testing IPC
    */
   static async greet(name: string): Promise<string> {

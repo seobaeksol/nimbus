@@ -1,8 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError } from '../../store/slices/panelSlice';
 import { useAppDispatch } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
+import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
+import ConfirmDialog from '../common/ConfirmDialog';
 import './FilePanel.css';
 
 interface FilePanelProps {
@@ -11,10 +13,88 @@ interface FilePanelProps {
 
 const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   const dispatch = useAppDispatch();
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    selectedFiles: FileInfo[];
+  } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    variant?: 'default' | 'danger';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   useEffect(() => {
     loadDirectory(panel.currentPath);
   }, [panel.currentPath]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const selectedFileInfos = panel.files.filter(f => panel.selectedFiles.includes(f.name));
+      
+      if (selectedFileInfos.length === 0) return;
+      
+      switch (event.key) {
+        case 'Delete':
+          event.preventDefault();
+          const message = selectedFileInfos.length === 1 
+            ? `Are you sure you want to delete "${selectedFileInfos[0].name}"?`
+            : `Are you sure you want to delete ${selectedFileInfos.length} selected items?`;
+          
+          showConfirmDialog(
+            'Confirm Delete',
+            message,
+            () => handleDeleteFiles(selectedFileInfos),
+            'danger'
+          );
+          break;
+          
+        case 'F2':
+          event.preventDefault();
+          if (selectedFileInfos.length === 1) {
+            const newName = prompt('Enter new name:', selectedFileInfos[0].name);
+            if (newName && newName !== selectedFileInfos[0].name) {
+              handleRenameFile(selectedFileInfos[0], newName);
+            }
+          }
+          break;
+          
+        case 'c':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // TODO: Implement copy to clipboard
+            console.log('Copy files:', selectedFileInfos.map(f => f.name));
+          }
+          break;
+          
+        case 'x':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // TODO: Implement cut to clipboard
+            console.log('Cut files:', selectedFileInfos.map(f => f.name));
+          }
+          break;
+          
+        case 'v':
+          if (event.ctrlKey || event.metaKey) {
+            event.preventDefault();
+            // TODO: Implement paste from clipboard
+            console.log('Paste files to:', panel.currentPath);
+          }
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [panel.files, panel.selectedFiles, panel.currentPath]);
 
   const loadDirectory = async (path: string) => {
     try {
@@ -68,6 +148,173 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   const handleBackClick = () => {
     const parentPath = panel.currentPath.split('/').slice(0, -1).join('/') || '/';
     dispatch(navigateToPath({ panelId: panel.id, path: parentPath }));
+  };
+
+  const handleRightClick = (e: React.MouseEvent, file: FileInfo) => {
+    e.preventDefault();
+    
+    // Select the right-clicked file if it's not already selected
+    if (!panel.selectedFiles.includes(file.name)) {
+      dispatch(selectFiles({ panelId: panel.id, fileNames: [file.name] }));
+    }
+    
+    const selectedFileInfos = panel.files.filter(f => 
+      panel.selectedFiles.includes(f.name) || f.name === file.name
+    );
+    
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      selectedFiles: selectedFileInfos,
+    });
+  };
+
+  const handleDeleteFiles = async (filesToDelete: FileInfo[]) => {
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      
+      for (const file of filesToDelete) {
+        await FileService.deleteItem(file.path);
+      }
+      
+      // Refresh directory listing
+      await loadDirectory(panel.currentPath);
+      
+      // Clear selection
+      dispatch(selectFiles({ panelId: panel.id, fileNames: [] }));
+    } catch (error) {
+      console.error('Failed to delete files:', error);
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to delete files: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
+  const handleRenameFile = async (file: FileInfo, newName: string) => {
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      await FileService.renameItem(file.path, newName);
+      await loadDirectory(panel.currentPath);
+    } catch (error) {
+      console.error('Failed to rename file:', error);
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to rename file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
+  const handleCreateFile = async (name: string) => {
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      await FileService.createFile(panel.currentPath, name);
+      await loadDirectory(panel.currentPath);
+    } catch (error) {
+      console.error('Failed to create file:', error);
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
+  const handleCreateFolder = async (name: string) => {
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      await FileService.createDirectory(panel.currentPath, name);
+      await loadDirectory(panel.currentPath);
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
+  const showConfirmDialog = (title: string, message: string, onConfirm: () => void, variant: 'default' | 'danger' = 'default') => {
+    setConfirmDialog({
+      isOpen: true,
+      title,
+      message,
+      variant,
+      onConfirm,
+    });
+  };
+
+  const getContextMenuItems = (selectedFiles: FileInfo[]): ContextMenuItem[] => {
+    const items: ContextMenuItem[] = [];
+    const hasSelection = selectedFiles.length > 0;
+    const isSingleFile = selectedFiles.length === 1;
+
+    if (hasSelection) {
+      items.push({
+        id: 'rename',
+        label: 'Rename',
+        icon: '✏️',
+        shortcut: 'F2',
+        disabled: !isSingleFile,
+        onClick: () => {
+          if (isSingleFile) {
+            const newName = prompt('Enter new name:', selectedFiles[0].name);
+            if (newName && newName !== selectedFiles[0].name) {
+              handleRenameFile(selectedFiles[0], newName);
+            }
+          }
+        },
+      });
+
+      items.push({ separator: true } as ContextMenuItem);
+
+      items.push({
+        id: 'delete',
+        label: selectedFiles.length === 1 ? 'Delete' : `Delete ${selectedFiles.length} items`,
+        icon: '🗑️',
+        shortcut: 'Del',
+        onClick: () => {
+          const message = selectedFiles.length === 1 
+            ? `Are you sure you want to delete "${selectedFiles[0].name}"?`
+            : `Are you sure you want to delete ${selectedFiles.length} selected items?`;
+          
+          showConfirmDialog(
+            'Confirm Delete',
+            message,
+            () => handleDeleteFiles(selectedFiles),
+            'danger'
+          );
+        },
+      });
+
+      items.push({ separator: true } as ContextMenuItem);
+    }
+
+    // Add "New" options
+    items.push({
+      id: 'new-file',
+      label: 'New File',
+      icon: '📄',
+      onClick: () => {
+        const name = prompt('Enter file name:');
+        if (name) {
+          handleCreateFile(name);
+        }
+      },
+    });
+
+    items.push({
+      id: 'new-folder',
+      label: 'New Folder',
+      icon: '📁',
+      onClick: () => {
+        const name = prompt('Enter folder name:');
+        if (name) {
+          handleCreateFolder(name);
+        }
+      },
+    });
+
+    return items;
   };
 
   const formatFileSize = (size: number): string => {
@@ -155,6 +402,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
             className={`file-item ${panel.selectedFiles.includes(file.name) ? 'selected' : ''}`}
             onClick={(e) => handleFileClick(file, e)}
             onDoubleClick={() => handleFileDoubleClick(file)}
+            onContextMenu={(e) => handleRightClick(e, file)}
           >
             <span className="file-icon">
               {file.file_type === 'Directory' ? '📁' : '📄'}
@@ -169,6 +417,28 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
           </div>
         ))}
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={getContextMenuItems(contextMenu.selectedFiles)}
+          onClose={() => setContextMenu(null)}
+          selectedFiles={contextMenu.selectedFiles}
+        />
+      )}
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={() => {
+          confirmDialog.onConfirm();
+          setConfirmDialog({ ...confirmDialog, isOpen: false });
+        }}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+      />
     </div>
   );
 };

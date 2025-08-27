@@ -15,6 +15,11 @@ fn main() {
             files::list_dir,
             files::get_file_info,
             files::create_directory,
+            files::create_file,
+            files::copy_item,
+            files::move_item,
+            files::delete_item,
+            files::rename_item,
             // System commands  
             system::get_system_info,
             system::greet,
