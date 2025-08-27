@@ -4,7 +4,7 @@
 
 Nimbus provides a comprehensive set of core file management features designed for power users who demand efficiency, reliability, and cross-platform consistency. All features are built with keyboard navigation as a first-class citizen while maintaining full mouse support.
 
-## Dual-Pane File Management
+## Multi-Panel File Management
 
 ### Side-by-Side Interface
 - **Independent Panes**: Two file browser panes that operate independently

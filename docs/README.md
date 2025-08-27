@@ -19,7 +19,7 @@ Welcome to the Nimbus File Manager documentation. This comprehensive documentati
 
 ### ✨ Features
 - [Core Features](./features/core-features.md) - Essential file management features
-- [Dual-Pane Interface](./features/dual-pane.md) - Tabbed dual-pane UI design
+- [Multi-Panel Interface](./features/multi-panel.md) - Flexible multi-panel UI design
 - [Archive Support](./features/archives.md) - ZIP, 7z, TAR, RAR handling
 - [Remote Access](./features/remote-access.md) - FTP/SFTP connectivity
 - [File Search](./features/search.md) - Recursive file search capabilities

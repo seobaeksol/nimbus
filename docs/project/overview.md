@@ -23,7 +23,7 @@ Nimbus is a cross-platform modern file manager inspired by Total Commander, buil
 
 ## Key Features
 
-### Dual-Pane Interface
+### Multi-Panel Interface
 - **Side-by-side Views**: Two independent file panes for efficient file operations
 - **Multi-tab Support**: Multiple tabs per pane, similar to modern web browsers
 - **Flexible Layout**: Resizable panes with optional single-pane mode
@@ -121,7 +121,7 @@ Nimbus is a cross-platform modern file manager inspired by Total Commander, buil
 ## Project Inspiration
 
 ### Total Commander
-- Dual-pane interface with keyboard shortcuts
+- Multi-panel interface with keyboard shortcuts
 - Extensive plugin ecosystem
 - Power user focus with advanced features
 

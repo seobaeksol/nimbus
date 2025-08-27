@@ -11,7 +11,7 @@ Nimbus follows an **incremental development approach** where each phase builds u
 
 #### Deliverables
 - [x] **Tauri Project Setup**: Basic project structure with Rust backend and React frontend
-- [x] **Minimal Dual-Pane UI**: Simple side-by-side layout without advanced features  
+- [x] **Minimal Multi-Panel UI**: Simple side-by-side layout without advanced features  
 - [x] **Basic IPC Communication**: "Hello World" commands between React and Rust
 - [x] **Local Directory Listing**: Single-tab file browsing for local filesystem only
 - [x] **Basic Navigation**: Folder entry and parent directory navigation
@@ -31,7 +31,7 @@ fn get_parent_dir(path: String) -> Result<String, String>
 
 #### Success Criteria
 - Application launches successfully on all three platforms
-- User can browse local directories in dual-pane interface
+- User can browse local directories in multi-panel interface
 - File list displays name, size, type, and modification date
 - Navigation works correctly (double-click to enter folders)
 

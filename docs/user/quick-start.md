@@ -2,13 +2,13 @@
 
 ## Welcome to Nimbus
 
-Nimbus is a modern, cross-platform file manager that combines the power of dual-pane navigation with advanced features like archive support, remote file access, and powerful search capabilities. This guide will help you get started quickly.
+Nimbus is a modern, cross-platform file manager that combines the power of multi-panel navigation with advanced features like archive support, remote file access, and powerful search capabilities. This guide will help you get started quickly.
 
 ## First Launch
 
 ### Initial Setup
 
-When you first launch Nimbus, you'll see the dual-pane interface:
+When you first launch Nimbus, you'll see the multi-panel interface:
 
 ```
 ┌─ Nimbus File Manager ────────────────────────────────────────────┐

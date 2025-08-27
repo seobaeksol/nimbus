@@ -292,7 +292,7 @@ impl PluginManager {
 // Main application structure
 App
 ├── GlobalContextProvider
-├── DualPaneLayout
+├── MultiPanelLayout
 │   ├── FilePane (left)
 │   │   ├── TabBar
 │   │   ├── PathBreadcrumb
@@ -316,21 +316,42 @@ App
 ```typescript
 // Application context
 interface AppState {
-    activePane: 'left' | 'right';
-    leftPane: PaneState;
-    rightPane: PaneState;
+    panels: PanelState[];           // Dynamic array of panels (1-6 panels)
+    activePanelId: string;          // ID of currently active panel
+    layout: PanelLayoutConfig;      // Current layout configuration
     globalSettings: Settings;
     connections: RemoteConnection[];
     searchResults?: SearchResults;
 }
 
-interface PaneState {
+interface PanelState {
+    id: string;                     // Unique panel identifier
     tabs: TabState[];
     activeTabIndex: number;
     selection: Set<string>;
     viewMode: 'list' | 'grid' | 'details';
     sortBy: SortField;
     sortOrder: 'asc' | 'desc';
+    gridPosition?: GridPosition;    // Position in grid layout
+    isActive: boolean;             // Whether panel is currently active
+}
+
+interface PanelLayoutConfig {
+    type: 'single' | 'dual' | 'triple' | 'grid2x2' | 'grid2x3' | 'grid3x2';
+    splitterPositions: number[];   // Positions of splitters (0.0-1.0)
+    gridDimensions?: {              // Grid-specific configuration
+        rows: number;
+        cols: number;
+        cellSpacing: number;
+        uniformSizing: boolean;
+    };
+}
+
+interface GridPosition {
+    row: number;                   // 0-indexed row position
+    col: number;                   // 0-indexed column position
+    rowSpan?: number;             // Number of rows spanned
+    colSpan?: number;             // Number of columns spanned
 }
 
 interface TabState {

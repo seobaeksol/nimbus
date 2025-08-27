@@ -137,7 +137,8 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 
 ### State Management Pattern
 - **Context + useReducer** for global application state
-- **Dual-pane interface** with independent tab states
+- **Multi-panel interface** with grid layout support and independent tab states
+- **Grid layouts**: 2x2, 2x3, and 3x2 arrangements for complex workflows
 - **Real-time updates** via Tauri event system
 
 ### Plugin Architecture
@@ -148,7 +149,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 ## Core Features (Planned)
 
 ### File Management
-- Dual-pane tabbed interface with independent navigation
+- Multi-panel tabbed interface with grid layout support (2x2, 2x3, 3x2 grids)
 - Basic operations: copy, move, delete, rename with progress tracking
 - Advanced operations: batch operations, secure deletion, integrity verification
 
@@ -172,6 +173,14 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 - Image viewer with EXIF data display
 - Hex viewer for binary files
 - Plugin-extensible viewer system
+
+### Grid Layout System
+- **2x2 Grid**: Four panels for development workflows (src, build, test, docs)
+- **2x3 Grid**: Six panels for complex multi-site management
+- **3x2 Grid**: Six panels optimized for version control workflows
+- **Smart presets**: Developer, Content, System Admin, Media Production grids
+- **Grid operations**: Broadcast copy, cascade move, synchronized navigation
+- **Keyboard shortcuts**: Ctrl+G combinations for quick grid switching
 
 ## Technology Stack
 
