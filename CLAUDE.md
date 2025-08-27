@@ -33,9 +33,9 @@ Use the `@` symbol to reference specific documentation sections quickly:
 
 ## Project Overview
 
-Nimbus is a cross-platform modern file manager inspired by Total Commander, built with **Tauri v2.8.4** (Rust backend) and **React 19** (TypeScript frontend). The project follows a multi-process architecture with secure IPC communication between frontend and backend processes.
+Nimbus is a cross-platform modern file manager inspired by Total Commander, built with **Tauri v2.8** (Rust backend) and **React 19.1.1** (TypeScript frontend). The project follows a multi-process architecture with secure IPC communication between frontend and backend processes.
 
-**Current Status**: Documentation and planning phase - no implementation files exist yet.
+**Current Status**: Implementation phase - full Tauri project with React 19 frontend and modular Rust backend architecture.
 
 ## @setup - Development Commands
 
@@ -215,12 +215,12 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 
 ### Core Dependencies
 **Backend (Rust)**:
-- `tauri = "2.8.4"` - Application framework
-- `tokio = "1.42"` - Async runtime
+- `tauri = "2.8"` - Application framework
+- `tokio = "1.47"` - Async runtime
 - `serde = "1.0"` - JSON serialization
-- `notify = "7.0.0"` - File system watching
+- `notify = "8.2"` - File system watching
 - `jwalk = "0.8.1"` - Parallel directory traversal
-- `zip = "2.2"`, `tar = "0.4"` - Archive support
+- `zip = "4.5"`, `tar = "0.4"` - Archive support
 - `ssh2 = "0.9.5"` - SFTP client
 - `rayon = "1.10.0"` - Data parallelism
 
@@ -233,7 +233,7 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 
 ### Build Tools
 - **Vite**: Frontend build tool with HMR
-- **TypeScript 5.9**: Type safety
+- **TypeScript 5.9.2**: Type safety
 - **ESLint + Prettier**: Code quality
 - **Vitest**: Frontend testing
 - **Cargo**: Rust package management

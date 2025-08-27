@@ -1,6 +1,6 @@
 // File service for IPC communication with Rust backend
 
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { FileInfo, SystemInfo } from "../types";
 
 export class FileService {
