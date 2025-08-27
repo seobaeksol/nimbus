@@ -1,0 +1,58 @@
+[package]
+name = "nimbus"
+version = "0.1.0"
+description = "A modern, cross-platform file manager"
+authors = ["Nimbus Team"]
+repository = "https://github.com/seobaeksol/nimbus"
+license = ""
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+# Tauri framework
+tauri = { version = "2.0", features = [] }
+tauri-plugin-shell = "2.0"
+
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# File system operations
+notify = "6.1"
+walkdir = "2.5"
+jwalk = "0.8"
+
+# Path manipulation
+path-clean = "1.0"
+dunce = "1.0"
+
+# Archive support
+zip = { version = "2.1", features = ["deflate", "bzip2"] }
+tar = "0.4"
+flate2 = "1.0"
+
+# Utility
+uuid = { version = "1.0", features = ["v4"] }
+thiserror = "1.0"
+anyhow = "1.0"
+hostname = "0.4"
+whoami = "1.5"
+dirs = "5.0"
+
+# Local crates
+core-engine = { path = "crates/core-engine" }
+nimbus-archive = { path = "crates/archive" }
+nimbus-remote-fs = { path = "crates/remote-fs" }
+nimbus-search = { path = "crates/search-engine" }
+nimbus-plugin-sdk = { path = "crates/plugin-sdk" }
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
