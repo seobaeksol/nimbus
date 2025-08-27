@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation } from '../../store/slices/panelSlice';
+import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
@@ -325,6 +325,8 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
       return;
     }
 
+    let currentProgressId: string | null = null;
+
     try {
       dispatch(setLoading({ panelId: panel.id, isLoading: true }));
       
@@ -336,9 +338,35 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
       const sourcePanel = panels[sourcePanelId];
       const sourcePanelFiles = sourcePanel?.files || [];
 
-      for (const fileName of filesToTransfer) {
+      // Create progress indicator
+      const progressId = `${operation}-${Date.now()}`;
+      const totalFiles = filesToTransfer.length;
+      currentProgressId = progressId;
+      
+      dispatch(addProgressIndicator({
+        id: progressId,
+        operation,
+        fileName: totalFiles > 1 ? `${totalFiles} items` : filesToTransfer[0],
+        progress: 0,
+        totalFiles,
+        currentFile: 0,
+        isComplete: false
+      }));
+
+      for (let i = 0; i < filesToTransfer.length; i++) {
+        const fileName = filesToTransfer[i];
         const sourceFile = sourcePanelFiles.find(f => f.name === fileName);
         if (!sourceFile) continue;
+
+        // Update progress
+        dispatch(updateProgressIndicator({
+          id: progressId,
+          updates: {
+            fileName,
+            currentFile: i + 1,
+            progress: ((i + 1) / totalFiles) * 100
+          }
+        }));
 
         const srcPath = sourceFile.path;
         // Construct destination path properly, handling root directory case
@@ -352,6 +380,20 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
           await FileService.moveItem(srcPath, dstPath);
         }
       }
+
+      // Mark progress as complete
+      dispatch(updateProgressIndicator({
+        id: progressId,
+        updates: {
+          isComplete: true,
+          progress: 100
+        }
+      }));
+
+      // Auto-remove completed progress after 3 seconds
+      setTimeout(() => {
+        dispatch(removeProgressIndicator(progressId));
+      }, 3000);
 
       // Refresh destination panel
       await loadDirectory(panel.currentPath);
@@ -369,6 +411,18 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
       
     } catch (error) {
       console.error('Failed to transfer files:', error);
+      
+      // Update progress indicator with error
+      if (currentProgressId) {
+        dispatch(updateProgressIndicator({
+          id: currentProgressId,
+          updates: {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            isComplete: false
+          }
+        }));
+      }
+      
       dispatch(setError({ 
         panelId: panel.id, 
         error: `Failed to transfer files: ${error instanceof Error ? error.message : 'Unknown error'}`

@@ -26,6 +26,17 @@ export interface DragState {
   dragOperation: 'move' | 'copy' | null;
 }
 
+export interface ProgressInfo {
+  id: string;
+  operation: 'copy' | 'move' | 'delete';
+  fileName: string;
+  progress: number; // 0-100
+  totalFiles: number;
+  currentFile: number;
+  isComplete: boolean;
+  error?: string;
+}
+
 export interface PanelState {
   panels: { [key: string]: Panel };
   activePanelId: string | null;
@@ -33,6 +44,7 @@ export interface PanelState {
   panelOrder: string[];
   presetLayouts: GridLayout[];
   dragState: DragState;
+  progressIndicators: ProgressInfo[];
 }
 
 const defaultLayouts: GridLayout[] = [
@@ -70,6 +82,7 @@ const initialState: PanelState = {
     sourcePanelId: null,
     dragOperation: null,
   },
+  progressIndicators: [],
 };
 
 const panelSlice = createSlice({
@@ -202,6 +215,28 @@ const panelSlice = createSlice({
         state.dragState.dragOperation = action.payload;
       }
     },
+
+    // Progress indicator actions
+    addProgressIndicator: (state, action: PayloadAction<ProgressInfo>) => {
+      state.progressIndicators.push(action.payload);
+    },
+
+    updateProgressIndicator: (state, action: PayloadAction<{ id: string; updates: Partial<ProgressInfo> }>) => {
+      const { id, updates } = action.payload;
+      const index = state.progressIndicators.findIndex(p => p.id === id);
+      if (index >= 0) {
+        state.progressIndicators[index] = { ...state.progressIndicators[index], ...updates };
+      }
+    },
+
+    removeProgressIndicator: (state, action: PayloadAction<string>) => {
+      const id = action.payload;
+      state.progressIndicators = state.progressIndicators.filter(p => p.id !== id);
+    },
+
+    clearCompletedProgress: (state) => {
+      state.progressIndicators = state.progressIndicators.filter(p => !p.isComplete && !p.error);
+    },
   },
 });
 
@@ -218,6 +253,10 @@ export const {
   startDrag,
   endDrag,
   setDragOperation,
+  addProgressIndicator,
+  updateProgressIndicator,
+  removeProgressIndicator,
+  clearCompletedProgress,
 } = panelSlice.actions;
 
 export default panelSlice.reducer;
