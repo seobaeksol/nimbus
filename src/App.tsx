@@ -1,38 +1,17 @@
-import React, { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { Provider } from "react-redux";
+import { store } from "./store";
+import LayoutToolbar from "./components/Toolbar/LayoutToolbar";
+import MultiPanelLayout from "./components/layout/MultiPanelLayout";
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-
-  async function greet() {
-    // Learn more about Tauri commands at https://v2.tauri.app/develop/calling-rust
-    setGreetMsg(await invoke("greet", { name }));
-  }
-
   return (
-    <div className="container">
-      <h1>Welcome to Nimbus!</h1>
-
-      <div className="row">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            greet();
-          }}
-        >
-          <input
-            id="greet-input"
-            onChange={(e) => setName(e.currentTarget.value)}
-            placeholder="Enter a name..."
-          />
-          <button type="submit">Greet</button>
-        </form>
+    <Provider store={store}>
+      <div className="app">
+        <LayoutToolbar />
+        <MultiPanelLayout />
       </div>
-
-      <p>{greetMsg}</p>
-    </div>
+    </Provider>
   );
 }
 
