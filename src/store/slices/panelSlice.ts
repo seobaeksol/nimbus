@@ -28,6 +28,7 @@ export interface PanelState {
 }
 
 const defaultLayouts: GridLayout[] = [
+  { rows: 1, cols: 1, name: '1x1 (Single Panel)' },
   { rows: 1, cols: 2, name: '1x2 (Classic Dual)' },
   { rows: 2, cols: 2, name: '2x2 (Quad)' },
   { rows: 2, cols: 3, name: '2x3 (Six Panel)' },

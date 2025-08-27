@@ -19,10 +19,11 @@ const LayoutToolbar: React.FC = () => {
           window.removeEventListener('keydown', handleLayoutKey);
           
           const layouts = {
-            '1': presetLayouts.find(l => l.cols === 2 && l.rows === 1), // Dual
-            '2': presetLayouts.find(l => l.cols === 2 && l.rows === 2), // 2x2
-            '3': presetLayouts.find(l => l.cols === 3 && l.rows === 2), // 2x3
-            '4': presetLayouts.find(l => l.cols === 2 && l.rows === 3), // 3x2
+            '1': presetLayouts.find(l => l.cols === 1 && l.rows === 1), // Single
+            '2': presetLayouts.find(l => l.cols === 2 && l.rows === 1), // Dual
+            '3': presetLayouts.find(l => l.cols === 2 && l.rows === 2), // 2x2
+            '4': presetLayouts.find(l => l.cols === 3 && l.rows === 2), // 2x3
+            '5': presetLayouts.find(l => l.cols === 2 && l.rows === 3), // 3x2
           };
           
           const selectedLayout = layouts[e.key as keyof typeof layouts];
@@ -67,10 +68,11 @@ const LayoutToolbar: React.FC = () => {
               }`}
               onClick={() => handleLayoutChange(layout)}
               title={`${layout.name} (Ctrl+G+${
-                layout.cols === 2 && layout.rows === 1 ? '1' :
-                layout.cols === 2 && layout.rows === 2 ? '2' :
-                layout.cols === 3 && layout.rows === 2 ? '3' :
-                layout.cols === 2 && layout.rows === 3 ? '4' : ''
+                layout.cols === 1 && layout.rows === 1 ? '1' :
+                layout.cols === 2 && layout.rows === 1 ? '2' :
+                layout.cols === 2 && layout.rows === 2 ? '3' :
+                layout.cols === 3 && layout.rows === 2 ? '4' :
+                layout.cols === 2 && layout.rows === 3 ? '5' : ''
               })`}
             >
               <span className="layout-icon">
@@ -89,7 +91,7 @@ const LayoutToolbar: React.FC = () => {
       </div>
       
       <div className="keyboard-hint">
-        Press <kbd>Ctrl</kbd>+<kbd>G</kbd> then <kbd>1-4</kbd> for quick layout switching
+        Press <kbd>Ctrl</kbd>+<kbd>G</kbd> then <kbd>1-5</kbd> for quick layout switching
       </div>
     </div>
   );
