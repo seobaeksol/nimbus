@@ -135,3 +135,62 @@
 .file-list::-webkit-scrollbar-thumb:hover {
   background: #666666;
 }
+
+/* Drag and drop styling */
+.file-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+  z-index: 1000;
+}
+
+.file-item.drag-over {
+  background-color: #0078d4 !important;
+  border: 2px dashed #ffffff;
+}
+
+.file-panel.drag-target {
+  border: 2px dashed #0078d4;
+  background-color: rgba(0, 120, 212, 0.1);
+}
+
+.file-panel.drag-target::after {
+  content: 'Drop files here';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #0078d4;
+  font-size: 18px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.file-panel.drag-target.copy-mode::after {
+  content: 'Copy files here (Ctrl held)';
+}
+
+.file-panel.drag-target.move-mode::after {
+  content: 'Move files here';
+}
+
+.drag-ghost {
+  background-color: #0078d4;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.1);
+  pointer-events: none;
+  z-index: 999;
+}

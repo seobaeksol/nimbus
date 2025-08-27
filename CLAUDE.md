@@ -316,3 +316,4 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 4. Test with dynamic loading
 
 This documentation provides the essential context for working with Nimbus, a modern file manager that balances performance, security, and extensibility through its Tauri-based architecture.
+- Always commit once you reach a meaningful milestone in coding

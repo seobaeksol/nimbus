@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError } from '../../store/slices/panelSlice';
-import { useAppDispatch } from '../../store';
+import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation } from '../../store/slices/panelSlice';
+import { useAppDispatch, useAppSelector } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
@@ -13,6 +13,7 @@ interface FilePanelProps {
 
 const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   const dispatch = useAppDispatch();
+  const { dragState, panels } = useAppSelector(state => state.panels);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -30,6 +31,8 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
     message: '',
     onConfirm: () => {},
   });
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragOverCounter, setDragOverCounter] = useState(0);
 
   useEffect(() => {
     loadDirectory(panel.currentPath);
@@ -243,6 +246,123 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
     });
   };
 
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, file: FileInfo) => {
+    // If the dragged file is not selected, select only it
+    const filesToDrag = panel.selectedFiles.includes(file.name) 
+      ? panel.selectedFiles 
+      : [file.name];
+
+    if (!panel.selectedFiles.includes(file.name)) {
+      dispatch(selectFiles({ panelId: panel.id, fileNames: [file.name] }));
+    }
+
+    const operation = e.ctrlKey ? 'copy' : 'move';
+    dispatch(startDrag({ panelId: panel.id, fileNames: filesToDrag, operation }));
+
+    // Set drag data for compatibility
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      files: filesToDrag,
+      sourcePanelId: panel.id,
+      operation,
+    }));
+
+    e.dataTransfer.effectAllowed = e.ctrlKey ? 'copy' : 'move';
+    
+    // Create custom drag image
+    const dragElement = e.currentTarget.cloneNode(true) as HTMLElement;
+    dragElement.style.transform = 'rotate(5deg)';
+    dragElement.style.opacity = '0.8';
+    document.body.appendChild(dragElement);
+    e.dataTransfer.setDragImage(dragElement, 10, 10);
+    
+    setTimeout(() => document.body.removeChild(dragElement), 0);
+  };
+
+  const handleDragEnd = () => {
+    dispatch(endDrag());
+    setIsDragOver(false);
+    setDragOverCounter(0);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = e.ctrlKey ? 'copy' : 'move';
+    
+    // Update drag operation based on modifier keys
+    if (dragState.isDragging && dragState.sourcePanelId !== panel.id) {
+      const newOperation = e.ctrlKey ? 'copy' : 'move';
+      if (dragState.dragOperation !== newOperation) {
+        dispatch(setDragOperation(newOperation));
+      }
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverCounter(prev => prev + 1);
+    
+    if (dragState.isDragging && dragState.sourcePanelId !== panel.id) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverCounter(prev => prev - 1);
+    
+    if (dragOverCounter <= 1) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    setDragOverCounter(0);
+
+    if (!dragState.isDragging || dragState.sourcePanelId === panel.id) {
+      return;
+    }
+
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      
+      const sourcePanelId = dragState.sourcePanelId!;
+      const filesToTransfer = dragState.draggedFiles;
+      const operation = dragState.dragOperation || 'move';
+
+      // Get source panel files to find the correct paths
+      const sourcePanel = panels[sourcePanelId];
+      const sourcePanelFiles = sourcePanel?.files || [];
+
+      for (const fileName of filesToTransfer) {
+        const sourceFile = sourcePanelFiles.find(f => f.name === fileName);
+        if (!sourceFile) continue;
+
+        const srcPath = sourceFile.path;
+        const dstPath = `${panel.currentPath}/${fileName}`.replace('//', '/');
+
+        if (operation === 'copy') {
+          await FileService.copyItem(srcPath, dstPath);
+        } else {
+          await FileService.moveItem(srcPath, dstPath);
+        }
+      }
+
+      // Refresh both panels
+      await loadDirectory(panel.currentPath);
+      dispatch(endDrag());
+      
+    } catch (error) {
+      console.error('Failed to transfer files:', error);
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to transfer files: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
   const getContextMenuItems = (selectedFiles: FileInfo[]): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
     const hasSelection = selectedFiles.length > 0;
@@ -382,8 +502,19 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
     );
   }
 
+  const isDragTarget = isDragOver && dragState.isDragging && dragState.sourcePanelId !== panel.id;
+  const panelClassName = `file-panel ${isDragTarget ? 'drag-target' : ''} ${
+    isDragTarget ? (dragState.dragOperation === 'copy' ? 'copy-mode' : 'move-mode') : ''
+  }`;
+
   return (
-    <div className="file-panel">
+    <div 
+      className={panelClassName}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="panel-header">
         <button 
           className="back-button" 
@@ -399,10 +530,15 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         {sortedFiles.map((file) => (
           <div
             key={file.name}
-            className={`file-item ${panel.selectedFiles.includes(file.name) ? 'selected' : ''}`}
+            className={`file-item ${panel.selectedFiles.includes(file.name) ? 'selected' : ''} ${
+              dragState.isDragging && dragState.draggedFiles.includes(file.name) ? 'dragging' : ''
+            }`}
+            draggable
             onClick={(e) => handleFileClick(file, e)}
             onDoubleClick={() => handleFileDoubleClick(file)}
             onContextMenu={(e) => handleRightClick(e, file)}
+            onDragStart={(e) => handleDragStart(e, file)}
+            onDragEnd={handleDragEnd}
           >
             <span className="file-icon">
               {file.file_type === 'Directory' ? '📁' : '📄'}

@@ -19,12 +19,20 @@ export interface GridLayout {
   name: string;
 }
 
+export interface DragState {
+  isDragging: boolean;
+  draggedFiles: string[];
+  sourcePanelId: string | null;
+  dragOperation: 'move' | 'copy' | null;
+}
+
 export interface PanelState {
   panels: { [key: string]: Panel };
   activePanelId: string | null;
   gridLayout: GridLayout;
   panelOrder: string[];
   presetLayouts: GridLayout[];
+  dragState: DragState;
 }
 
 const defaultLayouts: GridLayout[] = [
@@ -56,6 +64,12 @@ const initialState: PanelState = {
   gridLayout: { rows: 1, cols: 2, name: '1x2 (Classic Dual)' },
   panelOrder: ['panel-1', 'panel-2'],
   presetLayouts: defaultLayouts,
+  dragState: {
+    isDragging: false,
+    draggedFiles: [],
+    sourcePanelId: null,
+    dragOperation: null,
+  },
 };
 
 const panelSlice = createSlice({
@@ -162,6 +176,32 @@ const panelSlice = createSlice({
         }
       }
     },
+
+    // Drag and drop actions
+    startDrag: (state, action: PayloadAction<{ panelId: string; fileNames: string[]; operation: 'move' | 'copy' }>) => {
+      const { panelId, fileNames, operation } = action.payload;
+      state.dragState = {
+        isDragging: true,
+        draggedFiles: fileNames,
+        sourcePanelId: panelId,
+        dragOperation: operation,
+      };
+    },
+
+    endDrag: (state) => {
+      state.dragState = {
+        isDragging: false,
+        draggedFiles: [],
+        sourcePanelId: null,
+        dragOperation: null,
+      };
+    },
+
+    setDragOperation: (state, action: PayloadAction<'move' | 'copy'>) => {
+      if (state.dragState.isDragging) {
+        state.dragState.dragOperation = action.payload;
+      }
+    },
   },
 });
 
@@ -175,6 +215,9 @@ export const {
   selectFiles,
   setViewMode,
   setSorting,
+  startDrag,
+  endDrag,
+  setDragOperation,
 } = panelSlice.actions;
 
 export default panelSlice.reducer;
