@@ -218,6 +218,45 @@ const FilePanel: React.FC<FilePanelProps> = ({
     }));
   };
 
+  const generateUniqueFileName = async (targetDir: string, originalName: string): Promise<string> => {
+    try {
+      const existingFiles = await FileService.listDirectory(targetDir);
+      const existingNames = new Set(existingFiles.map(f => f.name));
+      
+      if (!existingNames.has(originalName)) {
+        return originalName;
+      }
+      
+      // Parse file name and extension
+      const lastDotIndex = originalName.lastIndexOf('.');
+      let baseName: string;
+      let extension: string;
+      
+      if (lastDotIndex > 0 && lastDotIndex < originalName.length - 1) {
+        baseName = originalName.substring(0, lastDotIndex);
+        extension = originalName.substring(lastDotIndex);
+      } else {
+        baseName = originalName;
+        extension = '';
+      }
+      
+      // Find unique name with incremental numbering
+      let counter = 2;
+      let candidateName: string;
+      
+      do {
+        candidateName = `${baseName} (${counter})${extension}`;
+        counter++;
+      } while (existingNames.has(candidateName) && counter < 1000); // Safety limit
+      
+      return candidateName;
+    } catch (error) {
+      // If we can't check existing files, just return original name and let backend handle
+      console.warn('Could not check for file conflicts:', error);
+      return originalName;
+    }
+  };
+
   const handlePasteFiles = async () => {
     if (!clipboardState.hasFiles || !clipboardState.files.length) {
       return; // Nothing to paste
@@ -254,11 +293,14 @@ const FilePanel: React.FC<FilePanelProps> = ({
       for (let i = 0; i < filesToPaste.length; i++) {
         const file = filesToPaste[i];
 
+        // Generate unique name to prevent conflicts
+        const uniqueName = await generateUniqueFileName(panel.currentPath, file.name);
+        
         // Update progress
         dispatch(updateProgressIndicator({
           id: progressId,
           updates: {
-            fileName: file.name,
+            fileName: uniqueName !== file.name ? `${file.name} → ${uniqueName}` : file.name,
             currentFile: i + 1,
             progress: ((i + 1) / totalFiles) * 100
           }
@@ -266,8 +308,8 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
         const srcPath = file.path;
         const dstPath = panel.currentPath === '/' 
-          ? `/${file.name}` 
-          : `${panel.currentPath}/${file.name}`;
+          ? `/${uniqueName}` 
+          : `${panel.currentPath}/${uniqueName}`;
 
         if (operation === 'copy') {
           await FileService.copyItem(srcPath, dstPath);
@@ -536,11 +578,14 @@ const FilePanel: React.FC<FilePanelProps> = ({
         const sourceFile = sourcePanelFiles.find(f => f.name === fileName);
         if (!sourceFile) continue;
 
+        // Generate unique name to prevent conflicts
+        const uniqueName = await generateUniqueFileName(panel.currentPath, fileName);
+
         // Update progress
         dispatch(updateProgressIndicator({
           id: progressId,
           updates: {
-            fileName,
+            fileName: uniqueName !== fileName ? `${fileName} → ${uniqueName}` : fileName,
             currentFile: i + 1,
             progress: ((i + 1) / totalFiles) * 100
           }
@@ -549,8 +594,8 @@ const FilePanel: React.FC<FilePanelProps> = ({
         const srcPath = sourceFile.path;
         // Construct destination path properly, handling root directory case
         const dstPath = panel.currentPath === '/' 
-          ? `/${fileName}` 
-          : `${panel.currentPath}/${fileName}`;
+          ? `/${uniqueName}` 
+          : `${panel.currentPath}/${uniqueName}`;
 
         if (operation === 'copy') {
           await FileService.copyItem(srcPath, dstPath);
