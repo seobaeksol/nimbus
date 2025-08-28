@@ -118,7 +118,7 @@ export class FileService {
     try {
       await invoke("create_file", { path, name });
     } catch (error) {
-      console.error("Failed to create file:", error);
+      // Don't log here - let the caller handle logging to avoid duplicates
       throw error;
     }
   }

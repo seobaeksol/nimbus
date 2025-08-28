@@ -45,6 +45,9 @@ const MultiPanelLayout: React.FC = () => {
       // Navigate to the directory containing the created folder if it's different from current
       const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
       dispatch(navigateToPath({ panelId, path: finalPath }));
+      
+      // Ensure loading state is cleared after successful creation
+      dispatch(setLoading({ panelId, isLoading: false }));
     } catch (error) {
       console.error('Failed to create folder:', error);
       dispatch(setLoading({ panelId, isLoading: false }));
@@ -56,6 +59,7 @@ const MultiPanelLayout: React.FC = () => {
   };
 
   const handleCreateFile = async (panelId: string, input: string) => {
+    console.log('handleCreateFile called from:', new Error().stack);
     try {
       const panel = panels[panelId];
       if (!panel) return;
@@ -71,6 +75,9 @@ const MultiPanelLayout: React.FC = () => {
       // Navigate to the directory containing the created file if it's different from current
       const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
       dispatch(navigateToPath({ panelId, path: finalPath }));
+      
+      // Ensure loading state is cleared after successful creation
+      dispatch(setLoading({ panelId, isLoading: false }));
     } catch (error) {
       console.error('Failed to create file:', error);
       dispatch(setLoading({ panelId, isLoading: false }));

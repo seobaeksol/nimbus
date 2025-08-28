@@ -108,9 +108,24 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     // Close palette first
     onClose();
     
-    // Execute command with context
+    // Create fresh context at execution time to ensure current state
+    const currentActivePanel = activePanelId ? panels[activePanelId] : null;
+    const currentSelectedFiles = currentActivePanel?.selectedFiles.map(fileName => 
+      currentActivePanel.files.find(file => file.name === fileName)
+    ).filter(Boolean) || [];
+
+    const executionContext: CommandContext = {
+      activePanelId,
+      selectedFiles: currentSelectedFiles as any[],
+      currentPath: currentActivePanel?.currentPath || '/',
+      dispatch: appDispatch,
+      panels,
+      clipboardHasFiles: clipboardState.hasFiles
+    };
+    
+    // Execute command with fresh context
     try {
-      command.action(commandContext);
+      command.action(executionContext);
     } catch (error) {
       console.error('Failed to execute command:', command.id, error);
     }
