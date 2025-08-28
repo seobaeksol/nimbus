@@ -1,5 +1,5 @@
 import { CommandSystem } from '../CommandSystem';
-import { ModernCommandRegistry } from '../registry/CommandRegistry';
+import { CommandRegistry } from '../registry/CommandRegistry';
 import { HybridCommandRegistry } from '../registry/LegacyCommandAdapter';
 import { CommandExecutor } from '../../commandExecutor';
 import { CommandContext } from '../../../types/commands';
@@ -38,7 +38,7 @@ describe('CommandSystem', () => {
       const system = CommandSystem.initialize(mockDispatch);
       
       expect(CommandExecutor.initialize).toHaveBeenCalled();
-      expect(ModernCommandRegistry.initialize).toHaveBeenCalledWith(mockDispatch);
+      expect(CommandRegistry.initialize).toHaveBeenCalledWith(mockDispatch);
       expect(HybridCommandRegistry.initialize).toHaveBeenCalledWith(mockDispatch);
       expect(system.getMode()).toBe('hybrid');
     });
@@ -46,7 +46,7 @@ describe('CommandSystem', () => {
     it('should initialize in modern mode when specified', () => {
       const system = CommandSystem.initialize(mockDispatch, 'modern');
       
-      expect(ModernCommandRegistry.initialize).toHaveBeenCalledWith(mockDispatch);
+      expect(CommandRegistry.initialize).toHaveBeenCalledWith(mockDispatch);
       expect(system.getMode()).toBe('modern');
     });
 
@@ -173,7 +173,7 @@ describe('CommandSystem', () => {
         initialized: true
       };
       
-      (ModernCommandRegistry.getStats as jest.Mock).mockReturnValue(mockStats);
+      (CommandRegistry.getStats as jest.Mock).mockReturnValue(mockStats);
       
       const stats = system.getStats();
       

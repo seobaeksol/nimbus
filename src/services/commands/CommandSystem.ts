@@ -1,7 +1,7 @@
 import { AppDispatch } from '../../store';
 import { CommandContext } from '../../types/commands';
 import { Command, ExecutionContext } from './types';
-import { ModernCommandRegistry } from './registry/CommandRegistry';
+import { CommandRegistry } from './registry/CommandRegistry';
 import { CommandFactory } from './factory/CommandFactory';
 import { CommandExecutor } from '../commandExecutor';
 import { BrowserDialogService, MockDialogService } from './services/DialogService';
@@ -59,28 +59,28 @@ export class CommandSystem {
     });
 
     // Initialize modern command registry
-    ModernCommandRegistry.initialize(this.dispatch);
+    CommandRegistry.initialize(this.dispatch);
   }
 
   /**
    * Get all available commands for the current context
    */
   getAvailableCommands(context: CommandContext): Command[] {
-    return ModernCommandRegistry.getAvailableCommands(context);
+    return CommandRegistry.getAvailableCommands(context);
   }
 
   /**
    * Search commands across the system
    */
   searchCommands(searchTerm: string, context: CommandContext): Command[] {
-    return ModernCommandRegistry.searchCommands(searchTerm, context);
+    return CommandRegistry.searchCommands(searchTerm, context);
   }
 
   /**
    * Execute a command by ID
    */
   async executeCommand(commandId: string, context: CommandContext): Promise<boolean> {
-    return ModernCommandRegistry.executeCommand(commandId, context);
+    return CommandRegistry.executeCommand(commandId, context);
   }
 
   /**
@@ -105,7 +105,7 @@ export class CommandSystem {
    * Get system statistics
    */
   getStats() {
-    const modernStats = ModernCommandRegistry.getStats();
+    const modernStats = CommandRegistry.getStats();
     
     return {
       mode: 'modern',

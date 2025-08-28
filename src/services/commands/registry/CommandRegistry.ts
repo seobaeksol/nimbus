@@ -1,5 +1,5 @@
 import { Command, ExecutionContext } from '../types';
-import { CommandContext } from '../../types/commands';
+import { CommandContext } from '../../../types/commands';
 import { CommandFactory } from '../factory/CommandFactory';
 import { CommandExecutor } from '../../commandExecutor';
 import { BrowserDialogService } from '../services/DialogService';
@@ -9,7 +9,7 @@ import { AppDispatch } from '../../../store';
  * Modern command registry using the new command architecture
  * Provides discovery, filtering, and execution of commands with dependency injection
  */
-export class ModernCommandRegistry {
+export class CommandRegistry {
   private static commands: Map<string, Command> = new Map();
   private static commandFactory: CommandFactory | null = null;
   private static initialized = false;

@@ -4,7 +4,7 @@
 export { CommandSystem } from './CommandSystem';
 
 // Registry
-export { ModernCommandRegistry } from './registry/CommandRegistry';
+export { CommandRegistry as ModernCommandRegistry } from './registry/CommandRegistry';
 
 // Factory
 export { CommandFactory } from './factory/CommandFactory';
