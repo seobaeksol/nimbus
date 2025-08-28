@@ -4,12 +4,14 @@ import { setActivePanel, setLoading, setError, navigateToPath } from '../../stor
 import { FileService } from '../../services/fileService';
 import FilePanel from '../panels/FilePanel';
 import PromptDialog from '../common/PromptDialog';
+import CommandPalette from '../common/CommandPalette';
 import './MultiPanelLayout.css';
 
 const MultiPanelLayout: React.FC = () => {
   const dispatch = useAppDispatch();
   const { panels, activePanelId, gridLayout, panelOrder } = useAppSelector(state => state.panels);
   const [addressBarActive, setAddressBarActive] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [promptDialog, setPromptDialog] = useState<{
     isOpen: boolean;
     title: string;
@@ -68,7 +70,14 @@ const MultiPanelLayout: React.FC = () => {
   // Global keyboard shortcut handler - only affects the active panel
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      // Only handle shortcuts if we have an active panel
+      // Handle Ctrl+Shift+P for Command Palette (works globally)
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'P') {
+        event.preventDefault();
+        setCommandPaletteOpen(true);
+        return;
+      }
+
+      // Only handle other shortcuts if we have an active panel
       if (!activePanelId || !panels[activePanelId]) return;
 
       // Handle Ctrl+L for address bar focus
@@ -122,6 +131,85 @@ const MultiPanelLayout: React.FC = () => {
     return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, [activePanelId, panels]);
 
+  // Command Palette event handlers
+  useEffect(() => {
+    const handleCommandEvents = (event: CustomEvent) => {
+      const { context } = event.detail;
+      
+      switch (event.type) {
+        case 'command-palette-create-file':
+          setPromptDialog({
+            isOpen: true,
+            title: 'Create File',
+            message: 'Enter file name:',
+            placeholder: 'filename.txt',
+            onConfirm: (name: string) => {
+              if (name && context.activePanelId) {
+                handleCreateFile(context.activePanelId, name);
+              }
+              setPromptDialog({ ...promptDialog, isOpen: false });
+            }
+          });
+          break;
+          
+        case 'command-palette-create-folder':
+          setPromptDialog({
+            isOpen: true,
+            title: 'Create Folder',
+            message: 'Enter folder name:',
+            placeholder: 'New Folder',
+            onConfirm: (name: string) => {
+              if (name && context.activePanelId) {
+                handleCreateFolder(context.activePanelId, name);
+              }
+              setPromptDialog({ ...promptDialog, isOpen: false });
+            }
+          });
+          break;
+          
+        case 'command-palette-focus-address-bar':
+          setAddressBarActive(true);
+          break;
+          
+        case 'command-palette-goto-path':
+          setPromptDialog({
+            isOpen: true,
+            title: 'Go to Path',
+            message: 'Enter path to navigate to:',
+            placeholder: '/path/to/directory',
+            onConfirm: (path: string) => {
+              if (path && context.activePanelId) {
+                dispatch(navigateToPath({ 
+                  panelId: context.activePanelId, 
+                  path: path.trim() 
+                }));
+              }
+              setPromptDialog({ ...promptDialog, isOpen: false });
+            }
+          });
+          break;
+      }
+    };
+
+    // Add event listeners for command palette events
+    const events = [
+      'command-palette-create-file',
+      'command-palette-create-folder', 
+      'command-palette-focus-address-bar',
+      'command-palette-goto-path'
+    ];
+    
+    events.forEach(eventType => {
+      window.addEventListener(eventType, handleCommandEvents as EventListener);
+    });
+    
+    return () => {
+      events.forEach(eventType => {
+        window.removeEventListener(eventType, handleCommandEvents as EventListener);
+      });
+    };
+  }, [dispatch, promptDialog]);
+
   const gridStyle = {
     display: 'grid',
     gridTemplateRows: `repeat(${gridLayout.rows}, 1fr)`,
@@ -166,6 +254,12 @@ const MultiPanelLayout: React.FC = () => {
         placeholder={promptDialog.placeholder}
         onConfirm={promptDialog.onConfirm}
         onCancel={() => setPromptDialog({ ...promptDialog, isOpen: false })}
+      />
+
+      <CommandPalette
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        dispatch={dispatch}
       />
     </div>
   );

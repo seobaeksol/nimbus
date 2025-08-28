@@ -140,6 +140,93 @@ const FilePanel: React.FC<FilePanelProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [panel.files, panel.selectedFiles, panel.currentPath, isActive]);
 
+  // Command Palette event handlers
+  useEffect(() => {
+    const handleCommandEvents = (event: CustomEvent) => {
+      const { context, file, files } = event.detail || {};
+      
+      // Only handle events for this panel
+      if (context?.activePanelId !== panel.id) return;
+
+      switch (event.type) {
+        case 'command-palette-rename-file':
+          if (file) {
+            setPromptDialog({
+              isOpen: true,
+              title: 'Rename File',
+              message: 'Enter new name:',
+              defaultValue: file.name,
+              onConfirm: (newName: string) => {
+                if (newName && newName !== file.name) {
+                  handleRenameFile(file, newName);
+                }
+                setPromptDialog({ ...promptDialog, isOpen: false });
+              }
+            });
+          }
+          break;
+          
+        case 'command-palette-delete-files':
+          if (files && files.length > 0) {
+            const message = files.length === 1 
+              ? `Are you sure you want to delete "${files[0].name}"?`
+              : `Are you sure you want to delete ${files.length} selected items?`;
+              
+            showConfirmDialog(
+              'Confirm Delete',
+              message,
+              () => handleDeleteFiles(files),
+              'danger'
+            );
+          }
+          break;
+          
+        case 'command-palette-copy-files':
+          if (files && files.length > 0) {
+            dispatch(copyFilesToClipboard({ 
+              panelId: panel.id, 
+              files: files 
+            }));
+          }
+          break;
+          
+        case 'command-palette-cut-files':
+          if (files && files.length > 0) {
+            dispatch(cutFilesToClipboard({ 
+              panelId: panel.id, 
+              files: files 
+            }));
+          }
+          break;
+          
+        case 'command-palette-paste-files':
+          if (clipboardState.hasFiles) {
+            handlePasteFiles();
+          }
+          break;
+      }
+    };
+
+    // Add event listeners for command palette events
+    const events = [
+      'command-palette-rename-file',
+      'command-palette-delete-files',
+      'command-palette-copy-files',
+      'command-palette-cut-files',
+      'command-palette-paste-files'
+    ];
+    
+    events.forEach(eventType => {
+      window.addEventListener(eventType, handleCommandEvents as EventListener);
+    });
+    
+    return () => {
+      events.forEach(eventType => {
+        window.removeEventListener(eventType, handleCommandEvents as EventListener);
+      });
+    };
+  }, [panel.id, clipboardState.hasFiles, promptDialog]);
+
   const loadDirectory = async (path: string) => {
     try {
       dispatch(setLoading({ panelId: panel.id, isLoading: true }));
