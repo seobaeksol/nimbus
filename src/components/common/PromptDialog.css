@@ -1,0 +1,134 @@
+.prompt-dialog-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.prompt-dialog {
+  background-color: #3c3c3c;
+  border: 1px solid #555555;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  width: 400px;
+  max-width: 90vw;
+  color: #ffffff;
+  animation: dialogSlideIn 0.2s ease-out;
+}
+
+.prompt-dialog-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid #555555;
+}
+
+.prompt-dialog-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.prompt-dialog-body {
+  padding: 16px 20px;
+}
+
+.prompt-dialog-message {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cccccc;
+}
+
+.prompt-dialog-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.prompt-dialog-input:focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.prompt-dialog-input::placeholder {
+  color: #888888;
+}
+
+.prompt-dialog-counter {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #888888;
+  text-align: right;
+}
+
+.prompt-dialog-footer {
+  padding: 12px 20px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.prompt-dialog-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  min-width: 80px;
+}
+
+.prompt-dialog-button.cancel {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: 1px solid #555555;
+}
+
+.prompt-dialog-button.cancel:hover {
+  background-color: #404040;
+}
+
+.prompt-dialog-button.confirm {
+  background-color: #0078d4;
+  color: #ffffff;
+}
+
+.prompt-dialog-button.confirm:hover:not(:disabled) {
+  background-color: #106ebe;
+}
+
+.prompt-dialog-button.confirm:disabled {
+  background-color: #555555;
+  color: #888888;
+  cursor: not-allowed;
+}
+
+.prompt-dialog-button:focus {
+  outline: 2px solid #0078d4;
+  outline-offset: 2px;
+}
+
+@keyframes dialogSlideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

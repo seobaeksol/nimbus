@@ -5,6 +5,7 @@ import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
 import ConfirmDialog from '../common/ConfirmDialog';
+import PromptDialog from '../common/PromptDialog';
 import AddressBar from '../common/AddressBar';
 import NotificationContainer from '../common/NotificationContainer';
 import './FilePanel.css';
@@ -39,6 +40,20 @@ const FilePanel: React.FC<FilePanelProps> = ({
     isOpen: false,
     title: '',
     message: '',
+    onConfirm: () => {},
+  });
+  const [promptDialog, setPromptDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    defaultValue?: string;
+    placeholder?: string;
+    onConfirm: (value: string) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    defaultValue: '',
     onConfirm: () => {},
   });
   const [isDragOver, setIsDragOver] = useState(false);
@@ -83,10 +98,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
         case 'F2':
           event.preventDefault();
           if (selectedFileInfos.length === 1) {
-            const newName = prompt('Enter new name:', selectedFileInfos[0].name);
-            if (newName && newName !== selectedFileInfos[0].name) {
-              handleRenameFile(selectedFileInfos[0], newName);
-            }
+            setPromptDialog({
+              isOpen: true,
+              title: 'Rename File',
+              message: 'Enter new name:',
+              defaultValue: selectedFileInfos[0].name,
+              onConfirm: (newName: string) => {
+                if (newName && newName !== selectedFileInfos[0].name) {
+                  handleRenameFile(selectedFileInfos[0], newName);
+                }
+                setPromptDialog({ ...promptDialog, isOpen: false });
+              }
+            });
           }
           break;
           
@@ -667,10 +690,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
         disabled: !isSingleFile,
         onClick: () => {
           if (isSingleFile) {
-            const newName = prompt('Enter new name:', selectedFiles[0].name);
-            if (newName && newName !== selectedFiles[0].name) {
-              handleRenameFile(selectedFiles[0], newName);
-            }
+            setPromptDialog({
+              isOpen: true,
+              title: 'Rename File',
+              message: 'Enter new name:',
+              defaultValue: selectedFiles[0].name,
+              onConfirm: (newName: string) => {
+                if (newName && newName !== selectedFiles[0].name) {
+                  handleRenameFile(selectedFiles[0], newName);
+                }
+                setPromptDialog({ ...promptDialog, isOpen: false });
+              }
+            });
           }
         },
       });
@@ -750,10 +781,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
       label: 'New File',
       icon: '📄',
       onClick: () => {
-        const name = prompt('Enter file name:');
-        if (name) {
-          handleCreateFile(name);
-        }
+        setPromptDialog({
+          isOpen: true,
+          title: 'Create File',
+          message: 'Enter file name:',
+          placeholder: 'filename.txt',
+          onConfirm: (name: string) => {
+            if (name) {
+              handleCreateFile(name);
+            }
+            setPromptDialog({ ...promptDialog, isOpen: false });
+          }
+        });
       },
     });
 
@@ -762,10 +801,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
       label: 'New Folder',
       icon: '📁',
       onClick: () => {
-        const name = prompt('Enter folder name:');
-        if (name) {
-          handleCreateFolder(name);
-        }
+        setPromptDialog({
+          isOpen: true,
+          title: 'Create Folder',
+          message: 'Enter folder name:',
+          placeholder: 'New Folder',
+          onConfirm: (name: string) => {
+            if (name) {
+              handleCreateFolder(name);
+            }
+            setPromptDialog({ ...promptDialog, isOpen: false });
+          }
+        });
       },
     });
 
@@ -923,6 +970,16 @@ const FilePanel: React.FC<FilePanelProps> = ({
           setConfirmDialog({ ...confirmDialog, isOpen: false });
         }}
         onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+      />
+
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        title={promptDialog.title}
+        message={promptDialog.message}
+        defaultValue={promptDialog.defaultValue}
+        placeholder={promptDialog.placeholder}
+        onConfirm={promptDialog.onConfirm}
+        onCancel={() => setPromptDialog({ ...promptDialog, isOpen: false })}
       />
     </div>
   );

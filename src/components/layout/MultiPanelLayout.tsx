@@ -3,12 +3,25 @@ import { useAppSelector, useAppDispatch } from '../../store';
 import { setActivePanel, setLoading, setError, navigateToPath } from '../../store/slices/panelSlice';
 import { FileService } from '../../services/fileService';
 import FilePanel from '../panels/FilePanel';
+import PromptDialog from '../common/PromptDialog';
 import './MultiPanelLayout.css';
 
 const MultiPanelLayout: React.FC = () => {
   const dispatch = useAppDispatch();
   const { panels, activePanelId, gridLayout, panelOrder } = useAppSelector(state => state.panels);
   const [addressBarActive, setAddressBarActive] = useState(false);
+  const [promptDialog, setPromptDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    placeholder?: string;
+    onConfirm: (value: string) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   const handlePanelClick = (panelId: string) => {
     dispatch(setActivePanel(panelId));
@@ -68,20 +81,36 @@ const MultiPanelLayout: React.FC = () => {
       // Handle Ctrl+N for new folder
       if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
         event.preventDefault();
-        const name = prompt('Enter folder name:');
-        if (name) {
-          handleCreateFolder(activePanelId, name);
-        }
+        setPromptDialog({
+          isOpen: true,
+          title: 'Create Folder',
+          message: 'Enter folder name:',
+          placeholder: 'New Folder',
+          onConfirm: (name: string) => {
+            if (name) {
+              handleCreateFolder(activePanelId, name);
+            }
+            setPromptDialog({ ...promptDialog, isOpen: false });
+          }
+        });
         return;
       }
 
       // Handle Ctrl+T for new file
       if ((event.ctrlKey || event.metaKey) && event.key === 't') {
         event.preventDefault();
-        const name = prompt('Enter file name:');
-        if (name) {
-          handleCreateFile(activePanelId, name);
-        }
+        setPromptDialog({
+          isOpen: true,
+          title: 'Create File',
+          message: 'Enter file name:',
+          placeholder: 'filename.txt',
+          onConfirm: (name: string) => {
+            if (name) {
+              handleCreateFile(activePanelId, name);
+            }
+            setPromptDialog({ ...promptDialog, isOpen: false });
+          }
+        });
         return;
       }
 
@@ -129,6 +158,15 @@ const MultiPanelLayout: React.FC = () => {
           );
         })}
       </div>
+
+      <PromptDialog
+        isOpen={promptDialog.isOpen}
+        title={promptDialog.title}
+        message={promptDialog.message}
+        placeholder={promptDialog.placeholder}
+        onConfirm={promptDialog.onConfirm}
+        onCancel={() => setPromptDialog({ ...promptDialog, isOpen: false })}
+      />
     </div>
   );
 };
