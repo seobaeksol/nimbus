@@ -10,7 +10,11 @@ export class FileService {
   static async listDirectory(path: string): Promise<FileInfo[]> {
     try {
       const files = await invoke<FileInfo[]>("list_dir", { path });
-      return files;
+      // Normalize paths in FileInfo objects to remove Windows long path prefixes
+      return files.map(file => ({
+        ...file,
+        path: this.normalizeWindowsPath(file.path)
+      }));
     } catch (error) {
       console.error("Failed to list directory:", error);
       throw error;
@@ -23,7 +27,11 @@ export class FileService {
   static async getFileInfo(path: string): Promise<FileInfo> {
     try {
       const info = await invoke<FileInfo>("get_file_info", { path });
-      return info;
+      // Normalize path in FileInfo object to remove Windows long path prefixes
+      return {
+        ...info,
+        path: this.normalizeWindowsPath(info.path)
+      };
     } catch (error) {
       console.error("Failed to get file info:", error);
       throw error;
@@ -121,11 +129,39 @@ export class FileService {
   static async getSystemPaths(): Promise<Record<string, string>> {
     try {
       const paths = await invoke<Record<string, string>>("get_system_paths");
-      return paths;
+      // Normalize all system paths to remove Windows long path prefixes
+      const normalizedPaths: Record<string, string> = {};
+      for (const [key, path] of Object.entries(paths)) {
+        normalizedPaths[key] = this.normalizeWindowsPath(path);
+      }
+      return normalizedPaths;
     } catch (error) {
       console.error("Failed to get system paths:", error);
       throw error;
     }
+  }
+
+  /**
+   * Normalize Windows paths by removing long path prefixes and fixing separators
+   */
+  private static normalizeWindowsPath(path: string): string {
+    if (!path) return path;
+    
+    let normalizedPath = path;
+    
+    // Remove Windows long path prefixes
+    if (normalizedPath.startsWith('\\\\?\\UNC\\')) {
+      // UNC path: \\?\UNC\server\share -> \\server\share
+      normalizedPath = '\\\\' + normalizedPath.substring(8);
+    } else if (normalizedPath.startsWith('\\\\?\\')) {
+      // Regular long path: \\?\C:\path -> C:\path
+      normalizedPath = normalizedPath.substring(4);
+    }
+    
+    // Convert backslashes to forward slashes for consistency
+    normalizedPath = normalizedPath.replace(/\\/g, '/');
+    
+    return normalizedPath;
   }
 
   /**
@@ -134,7 +170,8 @@ export class FileService {
   static async resolvePath(inputPath: string): Promise<string> {
     try {
       const resolvedPath = await invoke<string>("resolve_path", { inputPath });
-      return resolvedPath;
+      // Normalize Windows paths to remove long path prefixes and fix separators
+      return this.normalizeWindowsPath(resolvedPath);
     } catch (error) {
       console.error("Failed to resolve path:", error);
       throw error;
