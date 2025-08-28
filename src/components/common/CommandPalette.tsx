@@ -147,7 +147,6 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     <div 
       className="command-palette-backdrop" 
       onClick={handleBackdropClick}
-      onKeyDown={handleKeyDown}
       tabIndex={-1}
     >
       <div className="command-palette">

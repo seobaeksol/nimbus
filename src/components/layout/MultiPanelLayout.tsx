@@ -47,6 +47,7 @@ const MultiPanelLayout: React.FC = () => {
       dispatch(navigateToPath({ panelId, path: finalPath }));
     } catch (error) {
       console.error('Failed to create folder:', error);
+      dispatch(setLoading({ panelId, isLoading: false }));
       dispatch(setError({ 
         panelId, 
         error: `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -72,6 +73,7 @@ const MultiPanelLayout: React.FC = () => {
       dispatch(navigateToPath({ panelId, path: finalPath }));
     } catch (error) {
       console.error('Failed to create file:', error);
+      dispatch(setLoading({ panelId, isLoading: false }));
       dispatch(setError({ 
         panelId, 
         error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -108,7 +110,7 @@ const MultiPanelLayout: React.FC = () => {
       };
     }
     
-    const targetDir = fullPath.substring(0, lastSlashIndex) || '/';
+    const targetDir = lastSlashIndex === 0 ? '/' : fullPath.substring(0, lastSlashIndex);
     const fileName = fullPath.substring(lastSlashIndex + 1);
     
     if (!fileName) {
