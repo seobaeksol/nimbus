@@ -136,6 +136,9 @@ export class ModernCommandRegistry {
       return false;
     }
 
+    // Update CommandExecutor with fresh context before execution
+    CommandExecutor.updateContext(context);
+
     const executionContext = this.convertContext(context);
     
     if (!command.canExecute(executionContext)) {
