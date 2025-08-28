@@ -29,16 +29,22 @@ const MultiPanelLayout: React.FC = () => {
     dispatch(setActivePanel(panelId));
   };
 
-  const handleCreateFolder = async (panelId: string, name: string) => {
+  const handleCreateFolder = async (panelId: string, input: string) => {
     try {
       const panel = panels[panelId];
       if (!panel) return;
 
       dispatch(setLoading({ panelId, isLoading: true }));
-      await FileService.createDirectory(panel.currentPath, name);
       
-      // Refresh the panel to show the new folder
-      dispatch(navigateToPath({ panelId, path: panel.currentPath }));
+      // Parse the input to determine target directory and folder name
+      const { targetDir, fileName: folderName } = parseCreateFileInput(input, panel.currentPath);
+      
+      // Create the folder
+      await FileService.createDirectory(targetDir, folderName);
+      
+      // Navigate to the directory containing the created folder if it's different from current
+      const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
+      dispatch(navigateToPath({ panelId, path: finalPath }));
     } catch (error) {
       console.error('Failed to create folder:', error);
       dispatch(setError({ 
@@ -48,16 +54,22 @@ const MultiPanelLayout: React.FC = () => {
     }
   };
 
-  const handleCreateFile = async (panelId: string, name: string) => {
+  const handleCreateFile = async (panelId: string, input: string) => {
     try {
       const panel = panels[panelId];
       if (!panel) return;
 
       dispatch(setLoading({ panelId, isLoading: true }));
-      await FileService.createFile(panel.currentPath, name);
       
-      // Refresh the panel to show the new file
-      dispatch(navigateToPath({ panelId, path: panel.currentPath }));
+      // Parse the input to determine target directory and filename
+      const { targetDir, fileName } = parseCreateFileInput(input, panel.currentPath);
+      
+      // Create the file
+      await FileService.createFile(targetDir, fileName);
+      
+      // Navigate to the directory containing the created file if it's different from current
+      const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
+      dispatch(navigateToPath({ panelId, path: finalPath }));
     } catch (error) {
       console.error('Failed to create file:', error);
       dispatch(setError({ 
@@ -65,6 +77,45 @@ const MultiPanelLayout: React.FC = () => {
         error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
       }));
     }
+  };
+
+  const parseCreateFileInput = (input: string, currentPath: string) => {
+    const trimmedInput = input.trim();
+    
+    // Check if input is an absolute path (starts with / or C:\ on Windows)
+    const isAbsolute = trimmedInput.startsWith('/') || /^[A-Za-z]:\\/.test(trimmedInput);
+    
+    let fullPath: string;
+    if (isAbsolute) {
+      fullPath = trimmedInput;
+    } else {
+      // Relative path - resolve against current panel path
+      fullPath = currentPath.endsWith('/') 
+        ? currentPath + trimmedInput 
+        : currentPath + '/' + trimmedInput;
+    }
+    
+    // Normalize path separators
+    fullPath = fullPath.replace(/\\/g, '/');
+    
+    // Split into directory and filename
+    const lastSlashIndex = fullPath.lastIndexOf('/');
+    if (lastSlashIndex === -1) {
+      // No directory separator, create in current directory
+      return {
+        targetDir: currentPath,
+        fileName: fullPath
+      };
+    }
+    
+    const targetDir = fullPath.substring(0, lastSlashIndex) || '/';
+    const fileName = fullPath.substring(lastSlashIndex + 1);
+    
+    if (!fileName) {
+      throw new Error('Filename cannot be empty');
+    }
+    
+    return { targetDir, fileName };
   };
 
   // Global keyboard shortcut handler - only affects the active panel
@@ -93,11 +144,11 @@ const MultiPanelLayout: React.FC = () => {
         setPromptDialog({
           isOpen: true,
           title: 'Create Folder',
-          message: 'Enter folder name:',
-          placeholder: 'New Folder',
-          onConfirm: (name: string) => {
-            if (name) {
-              handleCreateFolder(activePanelId, name);
+          message: 'Enter folder path (relative to current directory or absolute):',
+          placeholder: 'foldername or /path/to/folder or subdir/folder',
+          onConfirm: (path: string) => {
+            if (path) {
+              handleCreateFolder(activePanelId, path);
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           }
@@ -111,11 +162,11 @@ const MultiPanelLayout: React.FC = () => {
         setPromptDialog({
           isOpen: true,
           title: 'Create File',
-          message: 'Enter file name:',
-          placeholder: 'filename.txt',
-          onConfirm: (name: string) => {
-            if (name) {
-              handleCreateFile(activePanelId, name);
+          message: 'Enter file path (relative to current directory or absolute):',
+          placeholder: 'filename.txt or /path/to/file.txt or subdir/file.txt',
+          onConfirm: (path: string) => {
+            if (path) {
+              handleCreateFile(activePanelId, path);
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           }
@@ -141,11 +192,11 @@ const MultiPanelLayout: React.FC = () => {
           setPromptDialog({
             isOpen: true,
             title: 'Create File',
-            message: 'Enter file name:',
-            placeholder: 'filename.txt',
-            onConfirm: (name: string) => {
-              if (name && context.activePanelId) {
-                handleCreateFile(context.activePanelId, name);
+            message: 'Enter file path (relative to current directory or absolute):',
+            placeholder: 'filename.txt or /path/to/file.txt or subdir/file.txt',
+            onConfirm: (path: string) => {
+              if (path && context.activePanelId) {
+                handleCreateFile(context.activePanelId, path);
               }
               setPromptDialog({ ...promptDialog, isOpen: false });
             }
@@ -156,11 +207,11 @@ const MultiPanelLayout: React.FC = () => {
           setPromptDialog({
             isOpen: true,
             title: 'Create Folder',
-            message: 'Enter folder name:',
-            placeholder: 'New Folder',
-            onConfirm: (name: string) => {
-              if (name && context.activePanelId) {
-                handleCreateFolder(context.activePanelId, name);
+            message: 'Enter folder path (relative to current directory or absolute):',
+            placeholder: 'foldername or /path/to/folder or subdir/folder',
+            onConfirm: (path: string) => {
+              if (path && context.activePanelId) {
+                handleCreateFolder(context.activePanelId, path);
               }
               setPromptDialog({ ...promptDialog, isOpen: false });
             }

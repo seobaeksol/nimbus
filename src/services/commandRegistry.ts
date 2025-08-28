@@ -28,7 +28,7 @@ export class CommandRegistry {
     this.register({
       id: 'file.create.file',
       label: 'File: Create New File',
-      description: 'Create a new file in current directory',
+      description: 'Create a new file with absolute or relative path support',
       category: 'File',
       icon: '📄',
       shortcut: 'Ctrl+T',
@@ -45,7 +45,7 @@ export class CommandRegistry {
     this.register({
       id: 'file.create.folder',
       label: 'File: Create New Folder',
-      description: 'Create a new folder in current directory',
+      description: 'Create a new folder with absolute or relative path support',
       category: 'File',
       icon: '📁',
       shortcut: 'Ctrl+N',
