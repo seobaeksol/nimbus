@@ -471,6 +471,15 @@ export class CommandExecutor {
     await this.navigateToPath(panelId, desktopPath);
   }
 
+  /**
+   * Focus the address bar for navigation
+   */
+  static focusAddressBar(): void {
+    // Dispatch a custom event that the AddressBar component can listen to
+    const event = new CustomEvent('focusAddressBar');
+    window.dispatchEvent(event);
+  }
+
   // =============================================================================
   // PANEL OPERATIONS
   // =============================================================================
@@ -683,25 +692,6 @@ export class CommandExecutor {
     this.dispatch(navigateToPath({ panelId, path: parentPath }));
   }
 
-  /**
-   * Handle address bar navigation
-   */
-  static async navigateToPath(panelId: string, inputPath: string): Promise<void> {
-    try {
-      // Resolve the path using the backend
-      const resolvedPath = await FileService.resolvePath(inputPath);
-      
-      // Try to navigate to the resolved path
-      this.setLoadingState(panelId, true);
-      
-      // If successful, update the panel
-      this.dispatch(navigateToPath({ panelId, path: resolvedPath }));
-      
-    } catch (error) {
-      // Let the error bubble up to the AddressBar component for display
-      throw error;
-    }
-  }
 
   /**
    * Handle error display
@@ -913,14 +903,6 @@ export class CommandExecutor {
     this.dispatch(navigateToPath({ panelId, path: applicationsPath }));
   }
 
-  /**
-   * Focus the address bar (delegates to UI)
-   */
-  static focusAddressBar(): void {
-    // This still needs to be handled by the UI layer
-    const event = new CustomEvent('command-palette-focus-address-bar');
-    window.dispatchEvent(event);
-  }
 
   /**
    * Go to path prompt (delegates to UI)
