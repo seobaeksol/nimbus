@@ -1,0 +1,97 @@
+import { AppDispatch } from '../../../store';
+import { addNotification } from '../../../store/slices/panelSlice';
+import { DialogService, NotificationType } from '../types';
+
+// Re-export the DialogService interface for easier importing
+export type { DialogService, NotificationType } from '../types';
+
+/**
+ * Browser-based implementation of DialogService
+ * Uses native browser dialogs for user interaction
+ */
+export class BrowserDialogService implements DialogService {
+  constructor(private dispatch: AppDispatch) {}
+
+  async prompt(message: string, defaultValue = ''): Promise<string | null> {
+    return window.prompt(message, defaultValue);
+  }
+
+  async confirm(message: string): Promise<boolean> {
+    return window.confirm(message);
+  }
+
+  showNotification(message: string, type: NotificationType): void {
+    this.dispatch(addNotification({
+      id: `dialog-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      message,
+      type,
+      timestamp: Date.now(),
+      autoClose: type !== 'error', // Keep error notifications visible
+      duration: this.getDurationForType(type)
+    }));
+  }
+
+  private getDurationForType(type: NotificationType): number {
+    switch (type) {
+      case 'success': return 3000;
+      case 'info': return 4000;
+      case 'warning': return 5000;
+      case 'error': return 0; // Manual close for errors
+      default: return 4000;
+    }
+  }
+}
+
+/**
+ * Mock implementation for testing
+ * Allows controlling dialog responses programmatically
+ */
+export class MockDialogService implements DialogService {
+  public promptResponses: (string | null)[] = [];
+  public confirmResponses: boolean[] = [];
+  public notifications: Array<{ message: string; type: NotificationType }> = [];
+
+  // Queue responses for testing
+  queuePromptResponse(response: string | null): void {
+    this.promptResponses.push(response);
+  }
+
+  queueConfirmResponse(response: boolean): void {
+    this.confirmResponses.push(response);
+  }
+
+  // Clear all queued responses
+  clearResponses(): void {
+    this.promptResponses = [];
+    this.confirmResponses = [];
+    this.notifications = [];
+  }
+
+  async prompt(message: string, defaultValue?: string): Promise<string | null> {
+    // For testing, return queued response or default
+    const response = this.promptResponses.shift();
+    return response !== undefined ? response : (defaultValue || null);
+  }
+
+  async confirm(message: string): Promise<boolean> {
+    // For testing, return queued response or false
+    return this.confirmResponses.shift() || false;
+  }
+
+  showNotification(message: string, type: NotificationType): void {
+    this.notifications.push({ message, type });
+  }
+
+  // Test helpers
+  getLastNotification(): { message: string; type: NotificationType } | undefined {
+    return this.notifications[this.notifications.length - 1];
+  }
+
+  getNotificationCount(): number {
+    return this.notifications.length;
+  }
+
+  hasNotificationType(type: NotificationType): boolean {
+    return this.notifications.some(n => n.type === type);
+  }
+}
