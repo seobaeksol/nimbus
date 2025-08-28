@@ -45,6 +45,18 @@ export interface ProgressInfo {
   error?: string;
 }
 
+export interface NotificationInfo {
+  id: string;
+  message: string;
+  type: 'error' | 'warning' | 'info' | 'success';
+  panelId?: string;
+  timestamp: number;
+  autoClose?: boolean;
+  duration?: number;
+  retryAction?: string;
+  retryData?: any;
+}
+
 export interface PanelState {
   panels: { [key: string]: Panel };
   activePanelId: string | null;
@@ -54,6 +66,7 @@ export interface PanelState {
   dragState: DragState;
   clipboardState: ClipboardState;
   progressIndicators: ProgressInfo[];
+  notifications: NotificationInfo[];
 }
 
 const defaultLayouts: GridLayout[] = [
@@ -99,6 +112,7 @@ const initialState: PanelState = {
     timestamp: 0,
   },
   progressIndicators: [],
+  notifications: [],
 };
 
 const panelSlice = createSlice({
@@ -286,6 +300,29 @@ const panelSlice = createSlice({
         timestamp: 0,
       };
     },
+
+    // Notification actions
+    addNotification: (state, action: PayloadAction<NotificationInfo>) => {
+      state.notifications.push(action.payload);
+      // Keep only the latest 5 notifications to prevent memory issues
+      if (state.notifications.length > 5) {
+        state.notifications = state.notifications.slice(-5);
+      }
+    },
+
+    removeNotification: (state, action: PayloadAction<string>) => {
+      const id = action.payload;
+      state.notifications = state.notifications.filter(n => n.id !== id);
+    },
+
+    clearAllNotifications: (state) => {
+      state.notifications = [];
+    },
+
+    clearPanelNotifications: (state, action: PayloadAction<string>) => {
+      const panelId = action.payload;
+      state.notifications = state.notifications.filter(n => n.panelId !== panelId);
+    },
   },
 });
 
@@ -309,6 +346,10 @@ export const {
   copyFilesToClipboard,
   cutFilesToClipboard,
   clearClipboard,
+  addNotification,
+  removeNotification,
+  clearAllNotifications,
+  clearPanelNotifications,
 } = panelSlice.actions;
 
 export default panelSlice.reducer;

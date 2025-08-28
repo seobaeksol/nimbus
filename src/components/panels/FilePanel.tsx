@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator, copyFilesToClipboard, cutFilesToClipboard, clearClipboard } from '../../store/slices/panelSlice';
+import React, { useEffect, useState } from 'react';
+import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator, copyFilesToClipboard, cutFilesToClipboard, clearClipboard, addNotification } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
 import ConfirmDialog from '../common/ConfirmDialog';
 import AddressBar from '../common/AddressBar';
+import NotificationContainer from '../common/NotificationContainer';
 import './FilePanel.css';
 
 interface FilePanelProps {
@@ -42,7 +43,6 @@ const FilePanel: React.FC<FilePanelProps> = ({
   });
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverCounter, setDragOverCounter] = useState(0);
-  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadDirectory(panel.currentPath);
@@ -124,10 +124,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
       dispatch(setFiles({ panelId: panel.id, files }));
     } catch (error) {
       console.error('Failed to load directory:', error);
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: error instanceof Error ? error.message : 'Failed to load directory'
-      }));
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load directory';
+      
+      // Clear loading state first
+      dispatch(setLoading({ panelId: panel.id, isLoading: false }));
+      
+      // Show non-blocking notification instead of blocking error
+      showNotification(
+        `Cannot access directory "${path}": ${errorMessage}`,
+        'error',
+        'loadDirectory',
+        { path }
+      );
     }
   };
 
@@ -178,7 +186,6 @@ const FilePanel: React.FC<FilePanelProps> = ({
       
       // Try to navigate to the resolved path
       dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      const files = await FileService.listDirectory(resolvedPath);
       
       // If successful, update the panel
       dispatch(navigateToPath({ panelId: panel.id, path: resolvedPath }));
@@ -195,6 +202,20 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   const handleAddressBarFocus = () => {
     onAddressBarFocus?.(); // Reset the active trigger
+  };
+
+  const showNotification = (message: string, type: 'error' | 'warning' | 'info' | 'success' = 'error', retryAction?: string, retryData?: any) => {
+    dispatch(addNotification({
+      id: `${panel.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      message,
+      type,
+      panelId: panel.id,
+      timestamp: Date.now(),
+      autoClose: type === 'success' || type === 'info',
+      duration: type === 'success' ? 3000 : type === 'info' ? 5000 : undefined,
+      retryAction,
+      retryData
+    }));
   };
 
   const handlePasteFiles = async () => {
@@ -300,10 +321,13 @@ const FilePanel: React.FC<FilePanelProps> = ({
         }));
       }
       
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to paste files: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      // Show non-blocking notification
+      showNotification(
+        `Failed to paste files: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error',
+        'pasteFiles',
+        { files: clipboardState.files, operation: clipboardState.operation }
+      );
     }
   };
 
@@ -341,10 +365,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
       dispatch(selectFiles({ panelId: panel.id, fileNames: [] }));
     } catch (error) {
       console.error('Failed to delete files:', error);
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to delete files: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      showNotification(
+        `Failed to delete files: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error'
+      );
     }
   };
 
@@ -355,10 +379,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
       await loadDirectory(panel.currentPath);
     } catch (error) {
       console.error('Failed to rename file:', error);
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to rename file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      showNotification(
+        `Failed to rename file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error'
+      );
     }
   };
 
@@ -369,10 +393,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
       await loadDirectory(panel.currentPath);
     } catch (error) {
       console.error('Failed to create file:', error);
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      showNotification(
+        `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error'
+      );
     }
   };
 
@@ -383,10 +407,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
       await loadDirectory(panel.currentPath);
     } catch (error) {
       console.error('Failed to create folder:', error);
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      showNotification(
+        `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'error'
+      );
     }
   };
 
@@ -577,10 +601,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
         }));
       }
       
-      dispatch(setError({ 
-        panelId: panel.id, 
-        error: `Failed to transfer files: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
+      showNotification(
+        `Failed to transfer files: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+        'error'
+      );
     }
   };
 
@@ -770,23 +794,6 @@ const FilePanel: React.FC<FilePanelProps> = ({
     );
   }
 
-  if (panel.error) {
-    return (
-      <div className="file-panel error">
-        <div className="panel-header">
-          <AddressBar 
-            currentPath={panel.currentPath}
-            isActive={addressBarActive}
-            onNavigate={handleAddressBarNavigate}
-            onError={handleAddressBarError}
-            onFocus={handleAddressBarFocus}
-            className="error-state"
-          />
-        </div>
-        <div className="error-content">{panel.error}</div>
-      </div>
-    );
-  }
 
   const isDragTarget = isDragOver && dragState.isDragging && dragState.sourcePanelId !== panel.id;
   const panelClassName = `file-panel ${isDragTarget ? 'drag-target' : ''} ${
@@ -817,6 +824,11 @@ const FilePanel: React.FC<FilePanelProps> = ({
           onFocus={handleAddressBarFocus}
         />
       </div>
+      
+      <NotificationContainer 
+        panelId={panel.id} 
+        className="panel-notifications"
+      />
       
       <div className="file-list">
         {sortedFiles.map((file) => (

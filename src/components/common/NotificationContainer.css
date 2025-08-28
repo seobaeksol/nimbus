@@ -1,0 +1,37 @@
+/* Notification Container Styles */
+
+.notification-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  z-index: 1000;
+}
+
+.notification-container.panel-notifications {
+  margin-bottom: 8px;
+}
+
+.notification-container.global-notifications {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  width: 300px;
+  max-width: calc(100vw - 16px);
+  pointer-events: none;
+}
+
+.notification-container.global-notifications .error-notification {
+  pointer-events: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .notification-container.global-notifications {
+    top: 4px;
+    right: 4px;
+    left: 4px;
+    width: auto;
+  }
+}
