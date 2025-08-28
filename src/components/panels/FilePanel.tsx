@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator, copyFilesToClipboard, cutFilesToClipboard, clearClipboard, addNotification } from '../../store/slices/panelSlice';
+import { Panel, selectFiles } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
-import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
+import { CommandExecutor } from '../../services/commandExecutor';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
 import ConfirmDialog from '../common/ConfirmDialog';
 import PromptDialog from '../common/PromptDialog';
@@ -60,7 +60,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
   const [dragOverCounter, setDragOverCounter] = useState(0);
 
   useEffect(() => {
-    loadDirectory(panel.currentPath);
+    CommandExecutor.loadDirectory(panel.id, panel.currentPath);
   }, [panel.currentPath]);
 
   useEffect(() => {
@@ -73,7 +73,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
       // Handle Ctrl+V (paste) even without selection
       if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
         event.preventDefault();
-        handlePasteFiles();
+        CommandExecutor.pasteFiles(panel.id);
         return;
       }
       
@@ -90,7 +90,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           showConfirmDialog(
             'Confirm Delete',
             message,
-            () => handleDeleteFiles(selectedFileInfos),
+            () => CommandExecutor.deleteFiles(panel.id, selectedFileInfos),
             'danger'
           );
           break;
@@ -105,7 +105,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
               defaultValue: selectedFileInfos[0].name,
               onConfirm: (newName: string) => {
                 if (newName && newName !== selectedFileInfos[0].name) {
-                  handleRenameFile(selectedFileInfos[0], newName);
+                  CommandExecutor.renameFile(panel.id, selectedFileInfos[0], newName);
                 }
                 setPromptDialog({ ...promptDialog, isOpen: false });
               }
@@ -116,20 +116,14 @@ const FilePanel: React.FC<FilePanelProps> = ({
         case 'c':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            dispatch(copyFilesToClipboard({ 
-              panelId: panel.id, 
-              files: selectedFileInfos 
-            }));
+            CommandExecutor.copyFiles(panel.id, selectedFileInfos);
           }
           break;
           
         case 'x':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            dispatch(cutFilesToClipboard({ 
-              panelId: panel.id, 
-              files: selectedFileInfos 
-            }));
+            CommandExecutor.cutFiles(panel.id, selectedFileInfos);
           }
           break;
           
@@ -140,114 +134,9 @@ const FilePanel: React.FC<FilePanelProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [panel.files, panel.selectedFiles, panel.currentPath, isActive]);
 
-  // Command Palette event handlers
-  useEffect(() => {
-    const handleCommandEvents = (event: CustomEvent) => {
-      const { context, file, files } = event.detail || {};
-      
-      // Only handle events for this panel
-      if (context?.activePanelId !== panel.id) return;
+  // NOTE: Command Palette events are now handled by CommandExecutor
+  // All business logic has been moved to centralized command execution
 
-      switch (event.type) {
-        case 'command-palette-rename-file':
-          if (file) {
-            setPromptDialog({
-              isOpen: true,
-              title: 'Rename File',
-              message: 'Enter new name:',
-              defaultValue: file.name,
-              onConfirm: (newName: string) => {
-                if (newName && newName !== file.name) {
-                  handleRenameFile(file, newName);
-                }
-                setPromptDialog({ ...promptDialog, isOpen: false });
-              }
-            });
-          }
-          break;
-          
-        case 'command-palette-delete-files':
-          if (files && files.length > 0) {
-            const message = files.length === 1 
-              ? `Are you sure you want to delete "${files[0].name}"?`
-              : `Are you sure you want to delete ${files.length} selected items?`;
-              
-            showConfirmDialog(
-              'Confirm Delete',
-              message,
-              () => handleDeleteFiles(files),
-              'danger'
-            );
-          }
-          break;
-          
-        case 'command-palette-copy-files':
-          if (files && files.length > 0) {
-            dispatch(copyFilesToClipboard({ 
-              panelId: panel.id, 
-              files: files 
-            }));
-          }
-          break;
-          
-        case 'command-palette-cut-files':
-          if (files && files.length > 0) {
-            dispatch(cutFilesToClipboard({ 
-              panelId: panel.id, 
-              files: files 
-            }));
-          }
-          break;
-          
-        case 'command-palette-paste-files':
-          if (clipboardState.hasFiles) {
-            handlePasteFiles();
-          }
-          break;
-      }
-    };
-
-    // Add event listeners for command palette events
-    const events = [
-      'command-palette-rename-file',
-      'command-palette-delete-files',
-      'command-palette-copy-files',
-      'command-palette-cut-files',
-      'command-palette-paste-files'
-    ];
-    
-    events.forEach(eventType => {
-      window.addEventListener(eventType, handleCommandEvents as EventListener);
-    });
-    
-    return () => {
-      events.forEach(eventType => {
-        window.removeEventListener(eventType, handleCommandEvents as EventListener);
-      });
-    };
-  }, [panel.id, clipboardState.hasFiles, promptDialog]);
-
-  const loadDirectory = async (path: string) => {
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      const files = await FileService.listDirectory(path);
-      dispatch(setFiles({ panelId: panel.id, files }));
-    } catch (error) {
-      console.error('Failed to load directory:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load directory';
-      
-      // Clear loading state first
-      dispatch(setLoading({ panelId: panel.id, isLoading: false }));
-      
-      // Show non-blocking notification instead of blocking error
-      showNotification(
-        `Cannot access directory "${path}": ${errorMessage}`,
-        'error',
-        'loadDirectory',
-        { path }
-      );
-    }
-  };
 
   const handleFileClick = (file: FileInfo, event: React.MouseEvent) => {
     if (event.ctrlKey || event.metaKey) {
@@ -277,29 +166,17 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   const handleFileDoubleClick = (file: FileInfo) => {
     if (file.file_type === 'Directory') {
-      const newPath = panel.currentPath === '/' 
-        ? `/${file.name}` 
-        : `${panel.currentPath}/${file.name}`;
-      dispatch(navigateToPath({ panelId: panel.id, path: newPath }));
+      CommandExecutor.navigateToDirectory(panel.id, file);
     }
   };
 
   const handleBackClick = () => {
-    const parentPath = panel.currentPath.split('/').slice(0, -1).join('/') || '/';
-    dispatch(navigateToPath({ panelId: panel.id, path: parentPath }));
+    CommandExecutor.navigateToParent(panel.id);
   };
 
   const handleAddressBarNavigate = async (inputPath: string) => {
     try {
-      // Resolve the path using the backend
-      const resolvedPath = await FileService.resolvePath(inputPath);
-      
-      // Try to navigate to the resolved path
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      
-      // If successful, update the panel
-      dispatch(navigateToPath({ panelId: panel.id, path: resolvedPath }));
-      
+      await CommandExecutor.navigateToPath(panel.id, inputPath);
     } catch (error) {
       // Let the error bubble up to the AddressBar component for display
       throw error;
@@ -307,181 +184,15 @@ const FilePanel: React.FC<FilePanelProps> = ({
   };
 
   const handleAddressBarError = (error: string) => {
-    dispatch(setError({ panelId: panel.id, error }));
+    CommandExecutor.handleError(panel.id, error);
   };
 
   const handleAddressBarFocus = () => {
     onAddressBarFocus?.(); // Reset the active trigger
   };
 
-  const showNotification = (message: string, type: 'error' | 'warning' | 'info' | 'success' = 'error', retryAction?: string, retryData?: any) => {
-    dispatch(addNotification({
-      id: `${panel.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      message,
-      type,
-      panelId: panel.id,
-      timestamp: Date.now(),
-      autoClose: type === 'success' || type === 'info',
-      duration: type === 'success' ? 3000 : type === 'info' ? 5000 : undefined,
-      retryAction,
-      retryData
-    }));
-  };
 
-  const generateUniqueFileName = async (targetDir: string, originalName: string): Promise<string> => {
-    try {
-      const existingFiles = await FileService.listDirectory(targetDir);
-      const existingNames = new Set(existingFiles.map(f => f.name));
-      
-      if (!existingNames.has(originalName)) {
-        return originalName;
-      }
-      
-      // Parse file name and extension
-      const lastDotIndex = originalName.lastIndexOf('.');
-      let baseName: string;
-      let extension: string;
-      
-      if (lastDotIndex > 0 && lastDotIndex < originalName.length - 1) {
-        baseName = originalName.substring(0, lastDotIndex);
-        extension = originalName.substring(lastDotIndex);
-      } else {
-        baseName = originalName;
-        extension = '';
-      }
-      
-      // Find unique name with incremental numbering
-      let counter = 2;
-      let candidateName: string;
-      
-      do {
-        candidateName = `${baseName} (${counter})${extension}`;
-        counter++;
-      } while (existingNames.has(candidateName) && counter < 1000); // Safety limit
-      
-      return candidateName;
-    } catch (error) {
-      // If we can't check existing files, just return original name and let backend handle
-      console.warn('Could not check for file conflicts:', error);
-      return originalName;
-    }
-  };
 
-  const handlePasteFiles = async () => {
-    if (!clipboardState.hasFiles || !clipboardState.files.length) {
-      return; // Nothing to paste
-    }
-
-    // Don't paste to the same location for cut operations
-    if (clipboardState.operation === 'cut' && clipboardState.sourcePanelId === panel.id) {
-      return;
-    }
-
-    let currentProgressId: string | null = null;
-
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      
-      const filesToPaste = clipboardState.files;
-      const operation = clipboardState.operation === 'cut' ? 'move' : 'copy';
-      
-      // Create progress indicator
-      const progressId = `paste-${Date.now()}`;
-      const totalFiles = filesToPaste.length;
-      currentProgressId = progressId;
-      
-      dispatch(addProgressIndicator({
-        id: progressId,
-        operation,
-        fileName: totalFiles > 1 ? `${totalFiles} items` : filesToPaste[0].name,
-        progress: 0,
-        totalFiles,
-        currentFile: 0,
-        isComplete: false
-      }));
-
-      for (let i = 0; i < filesToPaste.length; i++) {
-        const file = filesToPaste[i];
-
-        // Generate unique name to prevent conflicts
-        const uniqueName = await generateUniqueFileName(panel.currentPath, file.name);
-        
-        // Update progress
-        dispatch(updateProgressIndicator({
-          id: progressId,
-          updates: {
-            fileName: uniqueName !== file.name ? `${file.name} → ${uniqueName}` : file.name,
-            currentFile: i + 1,
-            progress: ((i + 1) / totalFiles) * 100
-          }
-        }));
-
-        const srcPath = file.path;
-        const dstPath = panel.currentPath === '/' 
-          ? `/${uniqueName}` 
-          : `${panel.currentPath}/${uniqueName}`;
-
-        if (operation === 'copy') {
-          await FileService.copyItem(srcPath, dstPath);
-        } else {
-          await FileService.moveItem(srcPath, dstPath);
-        }
-      }
-
-      // Mark progress as complete
-      dispatch(updateProgressIndicator({
-        id: progressId,
-        updates: {
-          isComplete: true,
-          progress: 100
-        }
-      }));
-
-      // Auto-remove completed progress after 3 seconds
-      setTimeout(() => {
-        dispatch(removeProgressIndicator(progressId));
-      }, 3000);
-
-      // Refresh current panel
-      await loadDirectory(panel.currentPath);
-      
-      // If it was a cut operation, refresh source panel and clear clipboard
-      if (operation === 'move') {
-        if (clipboardState.sourcePanelId && clipboardState.sourcePanelId !== panel.id) {
-          const sourcePanel = panels[clipboardState.sourcePanelId];
-          if (sourcePanel) {
-            dispatch(navigateToPath({ 
-              panelId: clipboardState.sourcePanelId, 
-              path: sourcePanel.currentPath 
-            }));
-          }
-        }
-        dispatch(clearClipboard());
-      }
-      
-    } catch (error) {
-      console.error('Failed to paste files:', error);
-      
-      // Update progress indicator with error
-      if (currentProgressId) {
-        dispatch(updateProgressIndicator({
-          id: currentProgressId,
-          updates: {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            isComplete: false
-          }
-        }));
-      }
-      
-      // Show non-blocking notification
-      showNotification(
-        `Failed to paste files: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error',
-        'pasteFiles',
-        { files: clipboardState.files, operation: clipboardState.operation }
-      );
-    }
-  };
 
   const handleRightClick = (e: React.MouseEvent, file: FileInfo) => {
     e.preventDefault();
@@ -502,69 +213,9 @@ const FilePanel: React.FC<FilePanelProps> = ({
     });
   };
 
-  const handleDeleteFiles = async (filesToDelete: FileInfo[]) => {
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      
-      for (const file of filesToDelete) {
-        await FileService.deleteItem(file.path);
-      }
-      
-      // Refresh directory listing
-      await loadDirectory(panel.currentPath);
-      
-      // Clear selection
-      dispatch(selectFiles({ panelId: panel.id, fileNames: [] }));
-    } catch (error) {
-      console.error('Failed to delete files:', error);
-      showNotification(
-        `Failed to delete files: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error'
-      );
-    }
-  };
 
-  const handleRenameFile = async (file: FileInfo, newName: string) => {
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      await FileService.renameItem(file.path, newName);
-      await loadDirectory(panel.currentPath);
-    } catch (error) {
-      console.error('Failed to rename file:', error);
-      showNotification(
-        `Failed to rename file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error'
-      );
-    }
-  };
 
-  const handleCreateFile = async (name: string) => {
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      await FileService.createFile(panel.currentPath, name);
-      await loadDirectory(panel.currentPath);
-    } catch (error) {
-      console.error('Failed to create file:', error);
-      showNotification(
-        `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error'
-      );
-    }
-  };
 
-  const handleCreateFolder = async (name: string) => {
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      await FileService.createDirectory(panel.currentPath, name);
-      await loadDirectory(panel.currentPath);
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-      showNotification(
-        `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error'
-      );
-    }
-  };
 
   const showConfirmDialog = (title: string, message: string, onConfirm: () => void, variant: 'default' | 'danger' = 'default') => {
     setConfirmDialog({
@@ -578,39 +229,11 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, file: FileInfo) => {
-    // If the dragged file is not selected, select only it
-    const filesToDrag = panel.selectedFiles.includes(file.name) 
-      ? panel.selectedFiles 
-      : [file.name];
-
-    if (!panel.selectedFiles.includes(file.name)) {
-      dispatch(selectFiles({ panelId: panel.id, fileNames: [file.name] }));
-    }
-
-    const operation = e.ctrlKey ? 'copy' : 'move';
-    dispatch(startDrag({ panelId: panel.id, fileNames: filesToDrag, operation }));
-
-    // Set drag data for compatibility
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      files: filesToDrag,
-      sourcePanelId: panel.id,
-      operation,
-    }));
-
-    e.dataTransfer.effectAllowed = e.ctrlKey ? 'copy' : 'move';
-    
-    // Create custom drag image
-    const dragElement = e.currentTarget.cloneNode(true) as HTMLElement;
-    dragElement.style.transform = 'rotate(5deg)';
-    dragElement.style.opacity = '0.8';
-    document.body.appendChild(dragElement);
-    e.dataTransfer.setDragImage(dragElement, 10, 10);
-    
-    setTimeout(() => document.body.removeChild(dragElement), 0);
+    CommandExecutor.startDrag(panel.id, file, e.ctrlKey, e);
   };
 
   const handleDragEnd = () => {
-    dispatch(endDrag());
+    CommandExecutor.endDrag();
     setIsDragOver(false);
     setDragOverCounter(0);
   };
@@ -621,10 +244,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
     
     // Update drag operation based on modifier keys
     if (dragState.isDragging && dragState.sourcePanelId !== panel.id) {
-      const newOperation = e.ctrlKey ? 'copy' : 'move';
-      if (dragState.dragOperation !== newOperation) {
-        dispatch(setDragOperation(newOperation));
-      }
+      CommandExecutor.updateDragOperation(e.ctrlKey);
     }
   };
 
@@ -655,112 +275,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
       return;
     }
 
-    let currentProgressId: string | null = null;
-
-    try {
-      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
-      
-      const sourcePanelId = dragState.sourcePanelId!;
-      const filesToTransfer = dragState.draggedFiles;
-      const operation = dragState.dragOperation || 'move';
-
-      // Get source panel files to find the correct paths
-      const sourcePanel = panels[sourcePanelId];
-      const sourcePanelFiles = sourcePanel?.files || [];
-
-      // Create progress indicator
-      const progressId = `${operation}-${Date.now()}`;
-      const totalFiles = filesToTransfer.length;
-      currentProgressId = progressId;
-      
-      dispatch(addProgressIndicator({
-        id: progressId,
-        operation,
-        fileName: totalFiles > 1 ? `${totalFiles} items` : filesToTransfer[0],
-        progress: 0,
-        totalFiles,
-        currentFile: 0,
-        isComplete: false
-      }));
-
-      for (let i = 0; i < filesToTransfer.length; i++) {
-        const fileName = filesToTransfer[i];
-        const sourceFile = sourcePanelFiles.find(f => f.name === fileName);
-        if (!sourceFile) continue;
-
-        // Generate unique name to prevent conflicts
-        const uniqueName = await generateUniqueFileName(panel.currentPath, fileName);
-
-        // Update progress
-        dispatch(updateProgressIndicator({
-          id: progressId,
-          updates: {
-            fileName: uniqueName !== fileName ? `${fileName} → ${uniqueName}` : fileName,
-            currentFile: i + 1,
-            progress: ((i + 1) / totalFiles) * 100
-          }
-        }));
-
-        const srcPath = sourceFile.path;
-        // Construct destination path properly, handling root directory case
-        const dstPath = panel.currentPath === '/' 
-          ? `/${uniqueName}` 
-          : `${panel.currentPath}/${uniqueName}`;
-
-        if (operation === 'copy') {
-          await FileService.copyItem(srcPath, dstPath);
-        } else {
-          await FileService.moveItem(srcPath, dstPath);
-        }
-      }
-
-      // Mark progress as complete
-      dispatch(updateProgressIndicator({
-        id: progressId,
-        updates: {
-          isComplete: true,
-          progress: 100
-        }
-      }));
-
-      // Auto-remove completed progress after 3 seconds
-      setTimeout(() => {
-        dispatch(removeProgressIndicator(progressId));
-      }, 3000);
-
-      // Refresh destination panel
-      await loadDirectory(panel.currentPath);
-      
-      // If it was a move operation, also refresh the source panel
-      if (operation === 'move' && sourcePanelId !== panel.id) {
-        // Trigger refresh of source panel by dispatching navigation action
-        const sourcePanel = panels[sourcePanelId];
-        if (sourcePanel) {
-          dispatch(navigateToPath({ panelId: sourcePanelId, path: sourcePanel.currentPath }));
-        }
-      }
-      
-      dispatch(endDrag());
-      
-    } catch (error) {
-      console.error('Failed to transfer files:', error);
-      
-      // Update progress indicator with error
-      if (currentProgressId) {
-        dispatch(updateProgressIndicator({
-          id: currentProgressId,
-          updates: {
-            error: error instanceof Error ? error.message : 'Unknown error',
-            isComplete: false
-          }
-        }));
-      }
-      
-      showNotification(
-        `Failed to transfer files: ${error instanceof Error ? error.message : 'Unknown error'}`, 
-        'error'
-      );
-    }
+    await CommandExecutor.handleDrop(panel.id, dragState);
   };
 
   const getContextMenuItems = (selectedFiles: FileInfo[]): ContextMenuItem[] => {
@@ -784,7 +299,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
               defaultValue: selectedFiles[0].name,
               onConfirm: (newName: string) => {
                 if (newName && newName !== selectedFiles[0].name) {
-                  handleRenameFile(selectedFiles[0], newName);
+                  CommandExecutor.renameFile(panel.id, selectedFiles[0], newName);
                 }
                 setPromptDialog({ ...promptDialog, isOpen: false });
               }
@@ -802,10 +317,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
         icon: '📋',
         shortcut: 'Ctrl+C',
         onClick: () => {
-          dispatch(copyFilesToClipboard({ 
-            panelId: panel.id, 
-            files: selectedFiles 
-          }));
+          CommandExecutor.copyFiles(panel.id, selectedFiles);
         },
       });
 
@@ -815,10 +327,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
         icon: '✂️',
         shortcut: 'Ctrl+X',
         onClick: () => {
-          dispatch(cutFilesToClipboard({ 
-            panelId: panel.id, 
-            files: selectedFiles 
-          }));
+          CommandExecutor.cutFiles(panel.id, selectedFiles);
         },
       });
 
@@ -837,7 +346,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           showConfirmDialog(
             'Confirm Delete',
             message,
-            () => handleDeleteFiles(selectedFiles),
+            () => CommandExecutor.deleteFiles(panel.id, selectedFiles),
             'danger'
           );
         },
@@ -855,7 +364,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
         shortcut: 'Ctrl+V',
         disabled: clipboardState.operation === 'cut' && clipboardState.sourcePanelId === panel.id,
         onClick: () => {
-          handlePasteFiles();
+          CommandExecutor.pasteFiles(panel.id);
         },
       });
 
@@ -875,7 +384,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           placeholder: 'filename.txt',
           onConfirm: (name: string) => {
             if (name) {
-              handleCreateFile(name);
+              CommandExecutor.createFile(panel.id, name);
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           }
@@ -895,7 +404,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           placeholder: 'New Folder',
           onConfirm: (name: string) => {
             if (name) {
-              handleCreateFolder(name);
+              CommandExecutor.createFolder(panel.id, name);
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           }

@@ -127,22 +127,58 @@ src-tauri/
 │   └── plugin-sdk/          # Dynamic plugin loading system
 ```
 
-### Frontend Structure (Planned)
+### Frontend Structure (Current)
 ```
 src/
-├── components/              # Reusable React components
-│   ├── FileList/           # File listing views
-│   ├── Toolbar/            # Application toolbar
-│   ├── Dialogs/            # Modal dialogs
-│   └── common/             # Shared UI components
-├── hooks/                  # Custom React hooks
-├── services/               # IPC service layer
-├── stores/                 # State management (Context + useReducer)
-├── types/                  # TypeScript definitions
-└── utils/                  # Utility functions
+├── components/              # Pure UI React components
+│   ├── layout/             # Layout components (MultiPanelLayout)
+│   ├── panels/             # Panel components (FilePanel)
+│   └── common/             # Shared UI components (CommandPalette, dialogs)
+├── services/               # Business logic and infrastructure
+│   ├── commandExecutor.ts  # Centralized business logic (ALL commands)
+│   ├── commandRegistry.ts  # Command palette registry
+│   ├── fileService.ts      # Infrastructure IPC layer
+│   └── pathAliasService.ts # Path resolution utilities
+├── store/                  # Redux Toolkit state management
+│   ├── index.ts            # Store configuration
+│   └── slices/             # State slices (panelSlice)
+└── types/                  # TypeScript definitions
+    ├── index.ts            # Core types (FileInfo, SystemInfo)
+    └── commands.ts         # Command system types
 ```
 
 ## Key Technical Patterns
+
+### CommandExecutor Architecture
+**Current Implementation**: Centralized business logic with clear separation of concerns
+
+```typescript
+// Architecture Flow: UI → Business Logic → Infrastructure → Backend
+UI Components → CommandExecutor → FileService → Tauri Backend
+     ↓              ↓                ↓              ↓
+ Pure UI      Business Logic   Infrastructure   File System
+```
+
+**CommandExecutor Pattern**:
+- **Single Source of Truth**: All business logic centralized in CommandExecutor
+- **Context-Aware**: Initialized with application state (panels, clipboard, dispatch)
+- **Unified Interface**: Consistent error handling, loading states, notifications
+- **Pure UI Components**: Components only handle presentation logic
+
+```typescript
+// UI Component delegates to CommandExecutor
+await CommandExecutor.createFile(panelId, fileName);
+await CommandExecutor.deleteFiles(panelId, selectedFiles);
+await CommandExecutor.copyFiles(panelId, files);
+
+// CommandExecutor handles all business logic
+export class CommandExecutor {
+  static initialize(context: CommandContext) { /* ... */ }
+  static async createFile(panelId: string, input: string) { /* ... */ }
+  static async deleteFiles(panelId: string, files: FileInfo[]) { /* ... */ }
+  // ... all other commands
+}
+```
 
 ### Tauri IPC Commands
 All backend operations use async Tauri commands with type-safe interfaces:
@@ -165,10 +201,25 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 ```
 
 ### State Management Pattern
-- **Context + useReducer** for global application state
-- **Multi-panel interface** with grid layout support and independent tab states
-- **Grid layouts**: 2x2, 2x3, and 3x2 arrangements for complex workflows
-- **Real-time updates** via Tauri event system
+- **Redux Toolkit** for global application state with type-safe hooks
+- **Multi-panel interface** with grid layout support and independent panel states
+- **Centralized state**: panels, clipboard, drag/drop, notifications, progress indicators
+- **Real-time updates** via CommandExecutor dispatching to Redux store
+
+```typescript
+// Redux Store Structure
+interface RootState {
+  panels: {
+    panels: Record<string, Panel>;           // Panel configurations
+    activePanelId: string | null;            // Currently active panel
+    gridLayout: { rows: number; cols: number }; // Grid arrangement
+    clipboardState: ClipboardState;          // Copy/cut operations
+    dragState: DragState;                    // Drag and drop state
+    notifications: Notification[];           // User notifications
+    progressIndicators: ProgressIndicator[]; // File operation progress
+  }
+}
+```
 
 ### Plugin Architecture
 - **Unified interfaces**: ContentPlugin, ProtocolPlugin, ViewerPlugin
@@ -258,8 +309,19 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 
 ## @security - Development Guidelines
 
+### Architectural Principles (Current Implementation)
+- **Separation of Concerns**: UI components are pure presentation, CommandExecutor handles business logic
+- **Single Source of Truth**: All commands flow through CommandExecutor
+- **Type Safety**: Strict TypeScript interfaces across all layers
+- **Error Boundaries**: Centralized error handling in CommandExecutor
+- **State Management**: Redux Toolkit with predictable state updates
+
 ### Code Organization
-- Use the **unified FileSystem trait** for all storage backends
+- **CommandExecutor**: Central hub for ALL business logic operations
+- **FileService**: Infrastructure layer for Tauri IPC communication only
+- **UI Components**: Pure presentation components with event delegation
+- **Redux Store**: Centralized state with actions dispatched through CommandExecutor
+- Use the **unified FileSystem trait** for all storage backends (Rust backend)
 - Implement **async operations** for non-blocking I/O
 - Follow **error handling patterns** with structured error types
 - Maintain **type safety** across IPC boundaries
@@ -297,17 +359,52 @@ pub async fn list_dir(path: String) -> Result<Vec<FileInfo>, FileError> {
 
 ## @patterns - Common Development Patterns
 
+### Adding New Commands
+1. **Add to CommandExecutor**: Create static method with business logic
+2. **Update CommandRegistry**: Register command with CommandExecutor call
+3. **UI Integration**: Components call CommandExecutor methods directly
+4. **No direct Redux dispatch**: All state changes go through CommandExecutor
+
+```typescript
+// 1. Add to CommandExecutor
+static async newOperation(panelId: string, params: any): Promise<void> {
+  try {
+    this.setLoadingState(panelId, true);
+    await FileService.performOperation(params);
+    this.showNotification('Operation completed', 'success');
+  } catch (error) {
+    this.showNotification(`Failed: ${error.message}`, 'error');
+  } finally {
+    this.setLoadingState(panelId, false);
+  }
+}
+
+// 2. Register in CommandRegistry
+this.register({
+  id: 'operation.new',
+  label: 'New Operation',
+  action: async (context) => {
+    await CommandExecutor.newOperation(context.activePanelId, params);
+  }
+});
+
+// 3. Use in UI Component
+const handleClick = () => {
+  CommandExecutor.newOperation(panelId, params);
+};
+```
+
 ### Adding New Tauri Commands
 1. Define command in appropriate `src-tauri/src/commands/*.rs` file
 2. Register in `main.rs` with `tauri::generate_handler!`
-3. Add TypeScript types and service function in frontend
-4. Add error handling and validation
+3. Add TypeScript types and service function in FileService
+4. Integrate with CommandExecutor for business logic
 
-### Adding New Components  
-1. Create component directory with TypeScript files
-2. Export from index.ts with proper typing
-3. Add to appropriate parent component
-4. Follow existing patterns for styling and state
+### Adding New UI Components  
+1. **Pure UI Only**: Components should not contain business logic
+2. **Event Handlers**: Delegate to CommandExecutor methods
+3. **State Management**: Use Redux hooks for state, CommandExecutor for actions
+4. **Type Safety**: Use TypeScript interfaces from types/ directory
 
 ### Plugin Development
 1. Implement required trait (ContentPlugin, ProtocolPlugin, ViewerPlugin)

@@ -1,12 +1,12 @@
 import { Command, CommandContext } from '../types/commands';
 import { 
-  navigateToPath, 
   setActivePanel, 
   setGridLayout, 
   setViewMode, 
   setSorting
 } from '../store/slices/panelSlice';
 import { PathAliasService } from './pathAliasService';
+import { CommandExecutor } from './commandExecutor';
 
 export class CommandRegistry {
   private static commands: Map<string, Command> = new Map();
@@ -33,11 +33,12 @@ export class CommandRegistry {
       icon: '📄',
       shortcut: 'Ctrl+T',
       action: async (context) => {
-        // This will need to trigger the PromptDialog - handled in component
-        const event = new CustomEvent('command-palette-create-file', { 
-          detail: { context } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId) return;
+        
+        const fileName = prompt('Enter file name (with path if needed):');
+        if (fileName) {
+          await CommandExecutor.createFile(context.activePanelId, fileName);
+        }
       }
     });
 
@@ -50,10 +51,12 @@ export class CommandRegistry {
       icon: '📁',
       shortcut: 'Ctrl+N',
       action: async (context) => {
-        const event = new CustomEvent('command-palette-create-folder', { 
-          detail: { context } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId) return;
+        
+        const folderName = prompt('Enter folder name (with path if needed):');
+        if (folderName) {
+          await CommandExecutor.createFolder(context.activePanelId, folderName);
+        }
       }
     });
 
@@ -67,10 +70,13 @@ export class CommandRegistry {
       shortcut: 'F2',
       when: (context) => context.selectedFiles.length === 1,
       action: async (context) => {
-        const event = new CustomEvent('command-palette-rename-file', { 
-          detail: { context, file: context.selectedFiles[0] } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId || context.selectedFiles.length !== 1) return;
+        
+        const file = context.selectedFiles[0];
+        const newName = prompt('Enter new name:', file.name);
+        if (newName && newName !== file.name) {
+          await CommandExecutor.renameFile(context.activePanelId, file, newName);
+        }
       }
     });
 
@@ -84,10 +90,15 @@ export class CommandRegistry {
       shortcut: 'Delete',
       when: (context) => context.selectedFiles.length > 0,
       action: async (context) => {
-        const event = new CustomEvent('command-palette-delete-files', { 
-          detail: { context, files: context.selectedFiles } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId || context.selectedFiles.length === 0) return;
+        
+        const message = context.selectedFiles.length === 1 
+          ? `Are you sure you want to delete "${context.selectedFiles[0].name}"?`
+          : `Are you sure you want to delete ${context.selectedFiles.length} selected items?`;
+        
+        if (confirm(message)) {
+          await CommandExecutor.deleteFiles(context.activePanelId, context.selectedFiles);
+        }
       }
     });
 
@@ -101,10 +112,8 @@ export class CommandRegistry {
       shortcut: 'Ctrl+C',
       when: (context) => context.selectedFiles.length > 0,
       action: async (context) => {
-        const event = new CustomEvent('command-palette-copy-files', { 
-          detail: { context, files: context.selectedFiles } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId || context.selectedFiles.length === 0) return;
+        await CommandExecutor.copyFiles(context.activePanelId, context.selectedFiles);
       }
     });
 
@@ -118,10 +127,8 @@ export class CommandRegistry {
       shortcut: 'Ctrl+X',
       when: (context) => context.selectedFiles.length > 0,
       action: async (context) => {
-        const event = new CustomEvent('command-palette-cut-files', { 
-          detail: { context, files: context.selectedFiles } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId || context.selectedFiles.length === 0) return;
+        await CommandExecutor.cutFiles(context.activePanelId, context.selectedFiles);
       }
     });
 
@@ -135,10 +142,8 @@ export class CommandRegistry {
       shortcut: 'Ctrl+V',
       when: (context) => context.clipboardHasFiles,
       action: async (context) => {
-        const event = new CustomEvent('command-palette-paste-files', { 
-          detail: { context } 
-        });
-        window.dispatchEvent(event);
+        if (!context.activePanelId) return;
+        await CommandExecutor.pasteFiles(context.activePanelId);
       }
     });
   }
@@ -153,8 +158,7 @@ export class CommandRegistry {
       icon: '🎯',
       shortcut: 'Ctrl+L',
       action: async (context) => {
-        const event = new CustomEvent('command-palette-focus-address-bar');
-        window.dispatchEvent(event);
+        CommandExecutor.focusAddressBar();
       }
     });
 
@@ -167,11 +171,7 @@ export class CommandRegistry {
       icon: '🏠',
       action: async (context) => {
         if (!context.activePanelId) return;
-        const homePath = await PathAliasService.resolvePath('~');
-        context.dispatch(navigateToPath({ 
-          panelId: context.activePanelId, 
-          path: homePath 
-        }));
+        await CommandExecutor.goToHome(context.activePanelId);
       }
     });
 
@@ -184,11 +184,7 @@ export class CommandRegistry {
       icon: '📄',
       action: async (context) => {
         if (!context.activePanelId) return;
-        const documentsPath = await PathAliasService.resolvePath('Documents');
-        context.dispatch(navigateToPath({ 
-          panelId: context.activePanelId, 
-          path: documentsPath 
-        }));
+        await CommandExecutor.goToDocuments(context.activePanelId);
       }
     });
 
@@ -201,11 +197,7 @@ export class CommandRegistry {
       icon: '⬇️',
       action: async (context) => {
         if (!context.activePanelId) return;
-        const downloadsPath = await PathAliasService.resolvePath('Downloads');
-        context.dispatch(navigateToPath({ 
-          panelId: context.activePanelId, 
-          path: downloadsPath 
-        }));
+        await CommandExecutor.goToDownloads(context.activePanelId);
       }
     });
 
@@ -218,11 +210,7 @@ export class CommandRegistry {
       icon: '🖥️',
       action: async (context) => {
         if (!context.activePanelId) return;
-        const desktopPath = await PathAliasService.resolvePath('Desktop');
-        context.dispatch(navigateToPath({ 
-          panelId: context.activePanelId, 
-          path: desktopPath 
-        }));
+        await CommandExecutor.goToDesktop(context.activePanelId);
       }
     });
 
@@ -234,10 +222,7 @@ export class CommandRegistry {
       category: 'Navigation',
       icon: '📁',
       action: async (context) => {
-        const event = new CustomEvent('command-palette-goto-path', { 
-          detail: { context } 
-        });
-        window.dispatchEvent(event);
+        CommandExecutor.promptGoToPath();
       }
     });
   }

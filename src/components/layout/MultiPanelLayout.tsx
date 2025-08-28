@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setActivePanel, setLoading, setError, navigateToPath } from '../../store/slices/panelSlice';
-import { FileService } from '../../services/fileService';
+import { setActivePanel, navigateToPath } from '../../store/slices/panelSlice';
+import { CommandExecutor } from '../../services/commandExecutor';
 import FilePanel from '../panels/FilePanel';
 import PromptDialog from '../common/PromptDialog';
 import CommandPalette from '../common/CommandPalette';
@@ -9,7 +9,17 @@ import './MultiPanelLayout.css';
 
 const MultiPanelLayout: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { panels, activePanelId, gridLayout, panelOrder } = useAppSelector(state => state.panels);
+  const { panels, activePanelId, gridLayout, panelOrder, clipboardState } = useAppSelector(state => state.panels);
+  
+  // Initialize CommandExecutor with context
+  useEffect(() => {
+    CommandExecutor.initialize({
+      dispatch,
+      panels,
+      activePanelId,
+      clipboardState
+    });
+  }, [dispatch, panels, activePanelId, clipboardState]);
   const [addressBarActive, setAddressBarActive] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [promptDialog, setPromptDialog] = useState<{
@@ -30,102 +40,13 @@ const MultiPanelLayout: React.FC = () => {
   };
 
   const handleCreateFolder = async (panelId: string, input: string) => {
-    try {
-      const panel = panels[panelId];
-      if (!panel) return;
-
-      dispatch(setLoading({ panelId, isLoading: true }));
-      
-      // Parse the input to determine target directory and folder name
-      const { targetDir, fileName: folderName } = parseCreateFileInput(input, panel.currentPath);
-      
-      // Create the folder
-      await FileService.createDirectory(targetDir, folderName);
-      
-      // Navigate to the directory containing the created folder if it's different from current
-      const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
-      dispatch(navigateToPath({ panelId, path: finalPath }));
-      
-      // Ensure loading state is cleared after successful creation
-      dispatch(setLoading({ panelId, isLoading: false }));
-    } catch (error) {
-      console.error('Failed to create folder:', error);
-      dispatch(setLoading({ panelId, isLoading: false }));
-      dispatch(setError({ 
-        panelId, 
-        error: `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
-    }
+    await CommandExecutor.createFolder(panelId, input);
   };
 
   const handleCreateFile = async (panelId: string, input: string) => {
-    console.log('handleCreateFile called from:', new Error().stack);
-    try {
-      const panel = panels[panelId];
-      if (!panel) return;
-
-      dispatch(setLoading({ panelId, isLoading: true }));
-      
-      // Parse the input to determine target directory and filename
-      const { targetDir, fileName } = parseCreateFileInput(input, panel.currentPath);
-      
-      // Create the file
-      await FileService.createFile(targetDir, fileName);
-      
-      // Navigate to the directory containing the created file if it's different from current
-      const finalPath = targetDir === panel.currentPath ? panel.currentPath : targetDir;
-      dispatch(navigateToPath({ panelId, path: finalPath }));
-      
-      // Ensure loading state is cleared after successful creation
-      dispatch(setLoading({ panelId, isLoading: false }));
-    } catch (error) {
-      console.error('Failed to create file:', error);
-      dispatch(setLoading({ panelId, isLoading: false }));
-      dispatch(setError({ 
-        panelId, 
-        error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
-      }));
-    }
+    await CommandExecutor.createFile(panelId, input);
   };
 
-  const parseCreateFileInput = (input: string, currentPath: string) => {
-    const trimmedInput = input.trim();
-    
-    // Check if input is an absolute path (starts with / or C:\ on Windows)
-    const isAbsolute = trimmedInput.startsWith('/') || /^[A-Za-z]:\\/.test(trimmedInput);
-    
-    let fullPath: string;
-    if (isAbsolute) {
-      fullPath = trimmedInput;
-    } else {
-      // Relative path - resolve against current panel path
-      fullPath = currentPath.endsWith('/') 
-        ? currentPath + trimmedInput 
-        : currentPath + '/' + trimmedInput;
-    }
-    
-    // Normalize path separators
-    fullPath = fullPath.replace(/\\/g, '/');
-    
-    // Split into directory and filename
-    const lastSlashIndex = fullPath.lastIndexOf('/');
-    if (lastSlashIndex === -1) {
-      // No directory separator, create in current directory
-      return {
-        targetDir: currentPath,
-        fileName: fullPath
-      };
-    }
-    
-    const targetDir = lastSlashIndex === 0 ? '/' : fullPath.substring(0, lastSlashIndex);
-    const fileName = fullPath.substring(lastSlashIndex + 1);
-    
-    if (!fileName) {
-      throw new Error('Filename cannot be empty');
-    }
-    
-    return { targetDir, fileName };
-  };
 
   // Global keyboard shortcut handler - only affects the active panel
   useEffect(() => {
@@ -237,12 +158,13 @@ const MultiPanelLayout: React.FC = () => {
             title: 'Go to Path',
             message: 'Enter path to navigate to:',
             placeholder: '/path/to/directory',
-            onConfirm: (path: string) => {
+            onConfirm: async (path: string) => {
               if (path && context.activePanelId) {
-                dispatch(navigateToPath({ 
-                  panelId: context.activePanelId, 
-                  path: path.trim() 
-                }));
+                try {
+                  await CommandExecutor.navigateToPath(context.activePanelId, path.trim());
+                } catch (error) {
+                  // Let CommandExecutor handle the error
+                }
               }
               setPromptDialog({ ...promptDialog, isOpen: false });
             }
