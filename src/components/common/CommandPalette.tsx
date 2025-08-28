@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppSelector, AppDispatch } from '../../store';
 import { CommandRegistry } from '../../services/commandRegistry';
-import { Command, CommandContext } from '../../types/commands';
+import { CommandContext } from '../../types/commands';
+import { Command as ModernCommand } from '../../services/commands/types';
 import './CommandPalette.css';
 
 interface CommandPaletteProps {
@@ -13,7 +14,7 @@ interface CommandPaletteProps {
 const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispatch: appDispatch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
+  const [filteredCommands, setFilteredCommands] = useState<ModernCommand[]>([]);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -27,10 +28,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     activePanel.files.find(file => file.name === fileName)
   ).filter(Boolean) || [];
 
-  // Initialize command registry
+  // Initialize modern command registry
   useEffect(() => {
-    CommandRegistry.initialize();
-  }, []);
+    CommandRegistry.initialize(appDispatch);
+  }, [appDispatch]);
 
   // Create command context
   const commandContext: CommandContext = {
@@ -104,7 +105,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     }
   };
 
-  const executeCommand = (command: Command) => {
+  const executeCommand = (command: ModernCommand) => {
     // Close palette first
     onClose();
     
@@ -123,12 +124,11 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
       clipboardHasFiles: clipboardState.hasFiles
     };
     
-    // Execute command with fresh context
-    try {
-      command.action(executionContext);
-    } catch (error) {
-      console.error('Failed to execute command:', command.id, error);
-    }
+    // Execute command with modern system
+    CommandRegistry.executeCommand(command.metadata.id, executionContext)
+      .catch(error => {
+        console.error('Failed to execute command:', command.metadata.id, error);
+      });
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -188,32 +188,32 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
           ) : (
             filteredCommands.map((command, index) => (
               <div
-                key={command.id}
+                key={command.metadata.id}
                 className={`command-palette-item ${index === selectedIndex ? 'selected' : ''}`}
                 onClick={() => executeCommand(command)}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
                 <div className="command-palette-item-content">
                   <div className="command-palette-item-icon">
-                    {command.icon || getCategoryIcon(command.category)}
+                    {command.metadata.icon || getCategoryIcon(command.metadata.category)}
                   </div>
                   <div className="command-palette-item-main">
                     <div className="command-palette-item-label">
-                      {command.label}
+                      {command.metadata.label}
                     </div>
-                    {command.description && (
+                    {command.metadata.description && (
                       <div className="command-palette-item-description">
-                        {command.description}
+                        {command.metadata.description}
                       </div>
                     )}
                   </div>
                   <div className="command-palette-item-meta">
                     <div className="command-palette-item-category">
-                      {command.category}
+                      {command.metadata.category}
                     </div>
-                    {command.shortcut && (
+                    {command.metadata.shortcut && (
                       <div className="command-palette-item-shortcut">
-                        {formatShortcut(command.shortcut)}
+                        {formatShortcut(command.metadata.shortcut)}
                       </div>
                     )}
                   </div>
