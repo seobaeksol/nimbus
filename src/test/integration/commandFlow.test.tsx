@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders, mockFileService, createMockFileInfo } from '../testUtils';
-import { CommandExecutor } from '../../services/commandExecutor';
-import { CommandRegistry } from '../../services/commandRegistry';
-import { CommandContext } from '../../types/commands';
+import { CommandService } from '../../services/commands/services/CommandService';
+import { ExecutionContext } from '../../services/commands/types';
 
 // Mock CommandExecutor to test integration points
 vi.mock('../../services/commandExecutor', () => ({

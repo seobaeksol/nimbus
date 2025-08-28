@@ -1,27 +1,29 @@
 import { CommandSystem } from '../CommandSystem';
 import { CommandRegistry } from '../registry/CommandRegistry';
-import { HybridCommandRegistry } from '../registry/LegacyCommandAdapter';
-import { CommandExecutor } from '../../commandExecutor';
-import { CommandContext } from '../../../types/commands';
+import { ExecutionContext } from '../types';
 
 // Mock dependencies
 jest.mock('../registry/CommandRegistry');
-jest.mock('../registry/LegacyCommandAdapter');
-jest.mock('../../commandExecutor');
 
 describe('CommandSystem', () => {
   let mockDispatch: jest.Mock;
-  let mockContext: CommandContext;
+  let mockContext: ExecutionContext;
 
   beforeEach(() => {
     mockDispatch = jest.fn();
     mockContext = {
-      activePanelId: 'panel-1',
+      panelId: 'panel-1',
       currentPath: '/test/path',
       selectedFiles: [],
       dispatch: mockDispatch,
-      panels: { 'panel-1': { id: 'panel-1', path: '/test/path' } },
-      clipboardHasFiles: false
+      panels: { 'panel-1': { id: 'panel-1', currentPath: '/test/path', files: [], selectedFiles: [], viewMode: 'list', sortBy: 'name', sortOrder: 'asc', isLoading: false, error: null } },
+      clipboardHasFiles: false,
+      clipboardState: {
+        hasFiles: false,
+        files: [],
+        operation: null,
+        sourcePanelId: null
+      }
     };
 
     // Reset singleton

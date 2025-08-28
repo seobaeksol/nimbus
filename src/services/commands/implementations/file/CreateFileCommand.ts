@@ -1,10 +1,10 @@
 import { FileOperationCommand } from '../../base/FileOperationCommand';
 import { CommandMetadata, ExecutionContext } from '../../types';
-import { CommandExecutor } from '../../../commandExecutor';
+import { CommandExecutorService } from '../../services/CommandExecutorService';
 import { DialogService } from '../../services/DialogService';
 
 export class CreateFileCommand extends FileOperationCommand {
-  constructor(executor: CommandExecutor, dialogService: DialogService) {
+  constructor(executor: CommandExecutorService, dialogService: DialogService) {
     const metadata: CommandMetadata = {
       id: 'create-file',
       label: 'New File',
@@ -36,7 +36,7 @@ export class CreateFileCommand extends FileOperationCommand {
           return;
         }
 
-        await CommandExecutor.createFile(context.panelId, fileName);
+        await this.executor.createFile(context.panelId, fileName);
         this.showSuccess(`Created file: ${fileName}`);
       },
       'Failed to create file'

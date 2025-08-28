@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Panel, selectFiles } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { FileInfo } from '../../types';
-import { CommandExecutor } from '../../services/commandExecutor';
+import { useCommands } from '../../hooks/useCommands';
+import { CommandExecutorService } from '../../services/commands/services/CommandExecutorService';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
 import ConfirmDialog from '../common/ConfirmDialog';
 import PromptDialog from '../common/PromptDialog';
@@ -24,7 +25,31 @@ const FilePanel: React.FC<FilePanelProps> = ({
   onAddressBarFocus 
 }) => {
   const dispatch = useAppDispatch();
-  const { dragState, panels, clipboardState } = useAppSelector(state => state.panels);
+  const { dragState, clipboardState } = useAppSelector(state => state.panels);
+  const { executeCommand, commands } = useCommands();
+  
+  // Create executor service instance for direct method calls  
+  const executorService = new CommandExecutorService(dispatch);
+  
+  // Temporary wrapper for CommandExecutor-style calls
+  const CommandExecutor = {
+    loadDirectory: (panelId: string, path: string) => executorService.loadDirectory(panelId, path),
+    navigateToDirectory: (panelId: string, file: FileInfo) => executorService.navigateToDirectory(panelId, file),
+    navigateToParent: (panelId: string) => executorService.navigateToParent(panelId),
+    navigateToPath: (_panelId: string, _path: string) => executeCommand('go-to-path', panel.id),
+    pasteFiles: (_panelId: string) => commands.pasteFiles(),
+    deleteFiles: (_panelId: string, _files: FileInfo[]) => commands.deleteFiles(),
+    renameFile: (_panelId: string, _file: FileInfo, _newName: string) => executeCommand('rename-file', panel.id),
+    copyFiles: (_panelId: string, _files: FileInfo[]) => commands.copyFiles(),
+    cutFiles: (_panelId: string, _files: FileInfo[]) => commands.cutFiles(),
+    createFile: (_panelId: string, _name: string) => commands.createFile(),
+    createFolder: (_panelId: string, _name: string) => commands.createFolder(),
+    startDrag: (panelId: string, file: FileInfo, ctrl: boolean, event: any) => executorService.startDrag(panelId, file, ctrl, event),
+    endDrag: () => executorService.endDrag(),
+    updateDragOperation: (isCtrl: boolean) => executorService.updateDragOperation(isCtrl),
+    handleDrop: (panelId: string, dragState: any) => executorService.handleDrop(panelId, dragState),
+    handleError: (panelId: string, error: any) => executorService.handleError(panelId, error)
+  };
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -60,8 +85,8 @@ const FilePanel: React.FC<FilePanelProps> = ({
   const [dragOverCounter, setDragOverCounter] = useState(0);
 
   useEffect(() => {
-    CommandExecutor.loadDirectory(panel.id, panel.currentPath);
-  }, [panel.currentPath]);
+    executorService.loadDirectory(panel.id, panel.currentPath);
+  }, [panel.currentPath, executorService]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

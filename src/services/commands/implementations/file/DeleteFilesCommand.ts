@@ -1,11 +1,11 @@
 import { FileOperationCommand } from '../../base/FileOperationCommand';
 import { CommandMetadata, ExecutionContext } from '../../types';
-import { CommandExecutor } from '../../../commandExecutor';
+import { CommandExecutorService } from '../../services/CommandExecutorService';
 import { DialogService } from '../../services/DialogService';
 import { FileInfo } from '../../../../types';
 
 export class DeleteFilesCommand extends FileOperationCommand {
-  constructor(executor: CommandExecutor, dialogService: DialogService) {
+  constructor(executor: CommandExecutorService, dialogService: DialogService) {
     const metadata: CommandMetadata = {
       id: 'delete-files',
       label: 'Delete',
@@ -41,13 +41,8 @@ export class DeleteFilesCommand extends FileOperationCommand {
           return;
         }
 
-        await this.executeWithProgress(
-          selectedFiles,
-          async (file: FileInfo) => {
-            await CommandExecutor.deleteFiles(context.panelId, [file]);
-          },
-          'Deleting'
-        );
+        // Use executor service directly for better integration
+        await this.executor.deleteFiles(context.panelId, selectedFiles);
 
         const fileWord = selectedFiles.length === 1 ? 'item' : 'items';
         this.showSuccess(`Deleted ${selectedFiles.length} ${fileWord}`);

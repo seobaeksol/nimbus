@@ -1,5 +1,5 @@
 import { Command, CommandMetadata, DialogService, ExecutionContext } from '../types';
-import { CommandExecutor } from '../../commandExecutor';
+import { CommandExecutorService } from '../services/CommandExecutorService';
 
 /**
  * Abstract base class for all commands
@@ -8,7 +8,7 @@ import { CommandExecutor } from '../../commandExecutor';
 export abstract class BaseCommand implements Command {
   constructor(
     public readonly metadata: CommandMetadata,
-    protected executor: CommandExecutor,
+    protected executor: CommandExecutorService,
     protected dialogService: DialogService
   ) {}
 

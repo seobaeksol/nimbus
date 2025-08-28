@@ -149,34 +149,39 @@ src/
 
 ## Key Technical Patterns
 
-### CommandExecutor Architecture
-**Current Implementation**: Centralized business logic with clear separation of concerns
+### Modern Command Architecture
+**Current Implementation**: Command pattern with dependency injection and service-based architecture
 
 ```typescript
-// Architecture Flow: UI → Business Logic → Infrastructure → Backend
-UI Components → CommandExecutor → FileService → Tauri Backend
-     ↓              ↓                ↓              ↓
- Pure UI      Business Logic   Infrastructure   File System
+// Architecture Flow: UI → Command System → Services → Backend
+UI Components → useCommands Hook → CommandService → CommandExecutorService → FileService → Tauri Backend
+     ↓              ↓                    ↓                ↓                    ↓              ↓
+ Pure UI      Command Interface    Orchestration    Business Logic    Infrastructure   File System
 ```
 
-**CommandExecutor Pattern**:
-- **Single Source of Truth**: All business logic centralized in CommandExecutor
-- **Context-Aware**: Initialized with application state (panels, clipboard, dispatch)
-- **Unified Interface**: Consistent error handling, loading states, notifications
-- **Pure UI Components**: Components only handle presentation logic
+**Modern Command Pattern**:
+- **Dependency Injection**: Services injected into command constructors for testability
+- **ExecutionContext**: Rich context object with all necessary state information  
+- **Service-Based**: CommandExecutorService handles all business logic operations
+- **React Integration**: useCommands hook provides easy access to command system
 
 ```typescript
-// UI Component delegates to CommandExecutor
-await CommandExecutor.createFile(panelId, fileName);
-await CommandExecutor.deleteFiles(panelId, selectedFiles);
-await CommandExecutor.copyFiles(panelId, files);
+// UI Component delegates to Commands via useCommands hook
+const { commands, executeCommand } = useCommands();
+await commands.createFile();
+await commands.deleteFiles();
+await commands.copyFiles();
 
-// CommandExecutor handles all business logic
-export class CommandExecutor {
-  static initialize(context: CommandContext) { /* ... */ }
-  static async createFile(panelId: string, input: string) { /* ... */ }
-  static async deleteFiles(panelId: string, files: FileInfo[]) { /* ... */ }
-  // ... all other commands
+// Modern Command System with dependency injection
+export class CommandService {
+  static initialize(dispatch: AppDispatch): CommandService { /* ... */ }
+  async executeCommand(commandId: string, context: ExecutionContext): Promise<boolean> { /* ... */ }
+}
+
+// React hook for command access
+export function useCommands() {
+  const { executeCommand, commands } = useCommands();
+  return { executeCommand, commands, commandService };
 }
 ```
 
@@ -379,18 +384,26 @@ static async newOperation(panelId: string, params: any): Promise<void> {
   }
 }
 
-// 2. Register in CommandRegistry
-this.register({
-  id: 'operation.new',
-  label: 'New Operation',
-  action: async (context) => {
-    await CommandExecutor.newOperation(context.activePanelId, params);
+// 2. Create Command class implementing Command interface
+export class NewOperationCommand extends Command {
+  constructor(private executor: CommandExecutorService, private dialogService: DialogService) {
+    super({
+      id: 'operation.new',
+      label: 'New Operation',
+      category: 'Operation',
+      description: 'Perform new operation'
+    });
   }
-});
 
-// 3. Use in UI Component
+  async execute(context: ExecutionContext): Promise<void> {
+    await this.executor.newOperation(context.panelId, params);
+  }
+}
+
+// 3. Use in UI Component via hook
+const { executeCommand } = useCommands();
 const handleClick = () => {
-  CommandExecutor.newOperation(panelId, params);
+  executeCommand('operation.new');
 };
 ```
 
@@ -398,12 +411,12 @@ const handleClick = () => {
 1. Define command in appropriate `src-tauri/src/commands/*.rs` file
 2. Register in `main.rs` with `tauri::generate_handler!`
 3. Add TypeScript types and service function in FileService
-4. Integrate with CommandExecutor for business logic
+4. Integrate with CommandExecutorService via Command pattern
 
 ### Adding New UI Components  
 1. **Pure UI Only**: Components should not contain business logic
-2. **Event Handlers**: Delegate to CommandExecutor methods
-3. **State Management**: Use Redux hooks for state, CommandExecutor for actions
+2. **Event Handlers**: Delegate to useCommands hook methods
+3. **State Management**: Use Redux hooks for state, useCommands hook for actions
 4. **Type Safety**: Use TypeScript interfaces from types/ directory
 
 ### Plugin Development

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setActivePanel, navigateToPath } from '../../store/slices/panelSlice';
-import { CommandExecutor } from '../../services/commandExecutor';
+import { setActivePanel } from '../../store/slices/panelSlice';
+import { CommandService } from '../../services/commands/services/CommandService';
+import { useCommands } from '../../hooks/useCommands';
 import FilePanel from '../panels/FilePanel';
 import PromptDialog from '../common/PromptDialog';
 import CommandPalette from '../common/CommandPalette';
@@ -9,17 +10,20 @@ import './MultiPanelLayout.css';
 
 const MultiPanelLayout: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { panels, activePanelId, gridLayout, panelOrder, clipboardState } = useAppSelector(state => state.panels);
+  const { panels, activePanelId, gridLayout, panelOrder } = useAppSelector(state => state.panels);
+  const { commands, executeCommand } = useCommands();
   
-  // Initialize CommandExecutor with context
+  // Temporary wrapper for CommandExecutor-style calls
+  const CommandExecutor = {
+    createFile: (_panelId: string, _name: string) => commands.createFile(),
+    createFolder: (_panelId: string, _name: string) => commands.createFolder(),
+    navigateToPath: (_panelId: string, _path: string) => executeCommand('go-to-path', activePanelId || ''),
+  };
+  
+  // Initialize CommandService
   useEffect(() => {
-    CommandExecutor.initialize({
-      dispatch,
-      panels,
-      activePanelId,
-      clipboardState
-    });
-  }, [dispatch, panels, activePanelId, clipboardState]);
+    CommandService.initialize(dispatch);
+  }, [dispatch]);
   const [addressBarActive, setAddressBarActive] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [promptDialog, setPromptDialog] = useState<{

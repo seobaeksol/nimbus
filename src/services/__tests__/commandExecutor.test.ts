@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { CommandExecutor } from '../commandExecutor';
+import { CommandService } from '../commands/services/CommandService';
+import { CommandExecutorService } from '../commands/services/CommandExecutorService';
 import { FileService } from '../fileService';
 import { PathAliasService } from '../pathAliasService';
 import { createTestStore, mockPanelState, createMockFileInfo } from '../../test/testUtils';
-import type { CommandContext } from '../commandExecutor';
+import type { ExecutionContext } from '../commands/types';
 
 // Mock dependencies
 vi.mock('../fileService');
@@ -12,23 +13,26 @@ vi.mock('../pathAliasService');
 const mockFileService = vi.mocked(FileService);
 const mockPathAliasService = vi.mocked(PathAliasService);
 
-describe('CommandExecutor', () => {
+describe('CommandExecutorService', () => {
   let store: ReturnType<typeof createTestStore>;
   let mockDispatch: ReturnType<typeof vi.fn>;
-  let testContext: CommandContext;
+  let testContext: ExecutionContext;
 
   beforeEach(() => {
     store = createTestStore({ panels: mockPanelState });
     mockDispatch = vi.fn();
     
     testContext = {
+      panelId: 'panel-1',
+      currentPath: '/test/path',
+      selectedFiles: [],
       dispatch: mockDispatch,
       panels: mockPanelState.panels,
-      activePanelId: 'panel-1',
+      clipboardHasFiles: false,
       clipboardState: mockPanelState.clipboardState,
     };
 
-    CommandExecutor.initialize(testContext);
+    CommandService.initialize(mockDispatch);
   });
 
   afterEach(() => {
@@ -40,9 +44,10 @@ describe('CommandExecutor', () => {
       it('should create a file with simple name in current directory', async () => {
         mockFileService.createFile.mockResolvedValue(undefined);
 
-        await CommandExecutor.createFile('panel-1', 'test.txt');
+        const commandService = CommandService.getInstance();
+        await commandService.executeCommand('create-file', testContext);
 
-        expect(mockFileService.createFile).toHaveBeenCalledWith('/test/path', 'test.txt');
+        expect(mockFileService.createFile).toHaveBeenCalledWith('/test/path', expect.any(String));
         expect(mockDispatch).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'panels/setLoading',

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAppSelector, AppDispatch } from '../../store';
-import { CommandRegistry } from '../../services/commandRegistry';
-import { CommandContext } from '../../types/commands';
-import { Command as ModernCommand } from '../../services/commands/types';
+import { Command, ExecutionContext } from '../../services/commands/types';
 import './CommandPalette.css';
+import { CommandService } from '../../services/commands/services/CommandService';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -14,7 +13,7 @@ interface CommandPaletteProps {
 const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispatch: appDispatch }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [filteredCommands, setFilteredCommands] = useState<ModernCommand[]>([]);
+  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
   
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -28,24 +27,31 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     activePanel.files.find(file => file.name === fileName)
   ).filter(Boolean) || [];
 
-  // Initialize modern command registry
+  // Initialize modern command service
   useEffect(() => {
-    CommandRegistry.initialize(appDispatch);
+    CommandService.initialize(appDispatch);
   }, [appDispatch]);
 
-  // Create command context
-  const commandContext: CommandContext = {
-    activePanelId,
-    selectedFiles: selectedFiles as any[], // Type assertion for now
+  // Create execution context
+  const executionContext: ExecutionContext = {
+    panelId: activePanelId || '',
     currentPath: activePanel?.currentPath || '/',
+    selectedFiles: selectedFiles as any[], // Type assertion for now
     dispatch: appDispatch,
+    clipboardHasFiles: clipboardState.hasFiles,
     panels,
-    clipboardHasFiles: clipboardState.hasFiles
+    clipboardState: {
+      hasFiles: clipboardState.hasFiles,
+      files: clipboardState.files || [],
+      operation: clipboardState.operation || null,
+      sourcePanelId: clipboardState.sourcePanelId || null
+    }
   };
 
   // Filter commands based on search term
   useEffect(() => {
-    const commands = CommandRegistry.searchCommands(searchTerm, commandContext);
+    const commandService = CommandService.getInstance();
+    const commands = commandService.searchCommands(searchTerm, executionContext);
     setFilteredCommands(commands);
     setSelectedIndex(0);
   }, [searchTerm, activePanelId, activePanel?.selectedFiles, clipboardState.hasFiles]);
@@ -105,7 +111,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
     }
   };
 
-  const executeCommand = (command: ModernCommand) => {
+  const executeCommand = (command: Command) => {
     // Close palette first
     onClose();
     
@@ -115,17 +121,24 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({ isOpen, onClose, dispat
       currentActivePanel.files.find(file => file.name === fileName)
     ).filter(Boolean) || [];
 
-    const executionContext: CommandContext = {
-      activePanelId,
-      selectedFiles: currentSelectedFiles as any[],
+    const freshExecutionContext: ExecutionContext = {
+      panelId: activePanelId || '',
       currentPath: currentActivePanel?.currentPath || '/',
+      selectedFiles: currentSelectedFiles as any[],
       dispatch: appDispatch,
+      clipboardHasFiles: clipboardState.hasFiles,
       panels,
-      clipboardHasFiles: clipboardState.hasFiles
+      clipboardState: {
+        hasFiles: clipboardState.hasFiles,
+        files: clipboardState.files || [],
+        operation: clipboardState.operation || null,
+        sourcePanelId: clipboardState.sourcePanelId || null
+      }
     };
     
     // Execute command with modern system
-    CommandRegistry.executeCommand(command.metadata.id, executionContext)
+    const commandService = CommandService.getInstance();
+    commandService.executeCommand(command.metadata.id, freshExecutionContext)
       .catch(error => {
         console.error('Failed to execute command:', command.metadata.id, error);
       });

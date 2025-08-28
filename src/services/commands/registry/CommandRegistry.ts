@@ -1,7 +1,6 @@
 import { Command, ExecutionContext } from '../types';
-import { CommandContext } from '../../../types/commands';
 import { CommandFactory } from '../factory/CommandFactory';
-import { CommandExecutor } from '../../commandExecutor';
+import { CommandExecutorService } from '../services/CommandExecutorService';
 import { BrowserDialogService } from '../services/DialogService';
 import { AppDispatch } from '../../../store';
 
@@ -20,17 +19,9 @@ export class CommandRegistry {
   static initialize(dispatch: AppDispatch) {
     if (this.initialized) return;
 
-    // Initialize CommandExecutor with required context
-    CommandExecutor.initialize({
-      dispatch,
-      panels: {},
-      activePanelId: null,
-      clipboardState: null
-    });
-
-    // Create DialogService and CommandFactory
+    // Create DialogService and CommandExecutorService
     const dialogService = new BrowserDialogService(dispatch);
-    const executor = new CommandExecutor(); // Instance for factory
+    const executor = new CommandExecutorService(dispatch);
     this.commandFactory = new CommandFactory(executor, dialogService);
 
     // Register all commands
@@ -80,18 +71,16 @@ export class CommandRegistry {
   /**
    * Get available commands based on current context
    */
-  static getAvailableCommands(context: CommandContext): Command[] {
-    const executionContext = this.convertContext(context);
-    
+  static getAvailableCommands(context: ExecutionContext): Command[] {
     return this.getAllCommands().filter(command => {
-      return command.canExecute(executionContext);
+      return command.canExecute(context);
     });
   }
 
   /**
    * Search commands by term with context filtering
    */
-  static searchCommands(searchTerm: string, context: CommandContext): Command[] {
+  static searchCommands(searchTerm: string, context: ExecutionContext): Command[] {
     const availableCommands = this.getAvailableCommands(context);
     
     if (!searchTerm.trim()) {
@@ -127,46 +116,27 @@ export class CommandRegistry {
   }
 
   /**
-   * Execute a command by ID with proper context conversion
+   * Execute a command by ID
    */
-  static async executeCommand(commandId: string, context: CommandContext): Promise<boolean> {
+  static async executeCommand(commandId: string, context: ExecutionContext): Promise<boolean> {
     const command = this.getCommand(commandId);
     if (!command) {
       console.error(`Command not found: ${commandId}`);
       return false;
     }
 
-    // Update CommandExecutor with fresh context before execution
-    CommandExecutor.updateContext(context);
-
-    const executionContext = this.convertContext(context);
-    
-    if (!command.canExecute(executionContext)) {
+    if (!command.canExecute(context)) {
       console.warn(`Command cannot execute: ${commandId}`);
       return false;
     }
 
     try {
-      await command.execute(executionContext);
+      await command.execute(context);
       return true;
     } catch (error) {
       console.error(`Command execution failed: ${commandId}`, error);
       return false;
     }
-  }
-
-  /**
-   * Convert old CommandContext to new ExecutionContext
-   */
-  private static convertContext(context: CommandContext): ExecutionContext {
-    return {
-      panelId: context.activePanelId || '',
-      currentPath: context.currentPath,
-      selectedFiles: context.selectedFiles,
-      dispatch: context.dispatch,
-      clipboardHasFiles: context.clipboardHasFiles,
-      panels: context.panels
-    };
   }
 
   /**

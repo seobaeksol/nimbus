@@ -1,5 +1,5 @@
 import { Command, DialogService, GridLayoutConfig, ViewMode, SortBy } from '../types';
-import { CommandExecutor } from '../../commandExecutor';
+import { CommandExecutorService } from '../services/CommandExecutorService';
 
 // Import concrete command classes
 import {
@@ -37,7 +37,7 @@ import {
  */
 export class CommandFactory {
   constructor(
-    private executor: CommandExecutor,
+    private executor: CommandExecutorService,
     private dialogService: DialogService
   ) {}
 

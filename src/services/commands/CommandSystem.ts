@@ -1,9 +1,8 @@
 import { AppDispatch } from '../../store';
-import { CommandContext } from '../../types/commands';
 import { Command, ExecutionContext } from './types';
 import { CommandRegistry } from './registry/CommandRegistry';
 import { CommandFactory } from './factory/CommandFactory';
-import { CommandExecutor } from '../commandExecutor';
+import { CommandExecutorService } from './services/CommandExecutorService';
 import { BrowserDialogService, MockDialogService } from './services/DialogService';
 
 // Modern Command System - no legacy support
@@ -50,14 +49,6 @@ export class CommandSystem {
    * Initialize all command subsystems
    */
   private initializeSubsystems() {
-    // Initialize CommandExecutor with context
-    CommandExecutor.initialize({
-      dispatch: this.dispatch,
-      panels: {},
-      activePanelId: null,
-      clipboardState: null
-    });
-
     // Initialize modern command registry
     CommandRegistry.initialize(this.dispatch);
   }
@@ -65,28 +56,28 @@ export class CommandSystem {
   /**
    * Get all available commands for the current context
    */
-  getAvailableCommands(context: CommandContext): Command[] {
+  getAvailableCommands(context: ExecutionContext): Command[] {
     return CommandRegistry.getAvailableCommands(context);
   }
 
   /**
    * Search commands across the system
    */
-  searchCommands(searchTerm: string, context: CommandContext): Command[] {
+  searchCommands(searchTerm: string, context: ExecutionContext): Command[] {
     return CommandRegistry.searchCommands(searchTerm, context);
   }
 
   /**
    * Execute a command by ID
    */
-  async executeCommand(commandId: string, context: CommandContext): Promise<boolean> {
+  async executeCommand(commandId: string, context: ExecutionContext): Promise<boolean> {
     return CommandRegistry.executeCommand(commandId, context);
   }
 
   /**
    * Get commands organized by category
    */
-  getCommandsByCategory(context: CommandContext): Map<string, Command[]> {
+  getCommandsByCategory(context: ExecutionContext): Map<string, Command[]> {
     const commands = this.getAvailableCommands(context);
     const categorized = new Map<string, Command[]>();
     
@@ -108,8 +99,7 @@ export class CommandSystem {
     const modernStats = CommandRegistry.getStats();
     
     return {
-      mode: 'modern',
-      initialized: this.initialized,
+      initialized: CommandSystem.initialized,
       totalCommands: modernStats.totalCommands,
       categories: modernStats.categories,
       modernStats
@@ -124,28 +114,7 @@ export class CommandSystem {
       ? new MockDialogService()
       : new BrowserDialogService(this.dispatch);
     
-    const executor = new CommandExecutor(); // Instance for factory
+    const executor = new CommandExecutorService(this.dispatch);
     return new CommandFactory(executor, dialogService);
-  }
-
-  /**
-   * Convert between context formats
-   */
-  static convertContext(context: CommandContext): ExecutionContext {
-    return {
-      panelId: context.activePanelId || '',
-      currentPath: context.currentPath,
-      selectedFiles: context.selectedFiles,
-      dispatch: context.dispatch,
-      clipboardHasFiles: context.clipboardHasFiles,
-      panels: context.panels
-    };
-  }
-
-  /**
-   * Get the current mode (always 'modern')
-   */
-  getMode(): string {
-    return 'modern';
   }
 }

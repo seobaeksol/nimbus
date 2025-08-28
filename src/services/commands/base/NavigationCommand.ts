@@ -1,12 +1,20 @@
 import { BaseCommand } from './BaseCommand';
 import { ExecutionContext } from '../types';
-import { CommandExecutor } from '../../commandExecutor';
+import { CommandExecutorService } from '../services/CommandExecutorService';
 
 /**
  * Specialized base class for navigation operations
  * Provides common functionality for directory navigation commands
  */
 export abstract class NavigationCommand extends BaseCommand {
+  
+  protected constructor(
+    metadata: any,
+    protected executor: CommandExecutorService,
+    protected dialogService: any
+  ) {
+    super(metadata);
+  }
   /**
    * Navigate to path with error handling and validation
    */
@@ -16,7 +24,7 @@ export abstract class NavigationCommand extends BaseCommand {
   ): Promise<void> {
     await this.withErrorHandling(
       async () => {
-        await CommandExecutor.navigateToPath(context.panelId, path);
+        await this.executor.navigateToPath(context.panelId, path);
       },
       'Navigation failed'
     );

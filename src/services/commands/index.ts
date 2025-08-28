@@ -1,29 +1,32 @@
-// Modern Command Architecture - Main Entry Point
+// Modern Command Architecture - Complete Command System
 
 // Core System
 export { CommandSystem } from './CommandSystem';
 
-// Registry
-export { CommandRegistry as ModernCommandRegistry } from './registry/CommandRegistry';
+// Main Services (Primary API)
+export { CommandService } from './services/CommandService';
+export { CommandExecutorService } from './services/CommandExecutorService';
 
-// Factory
+// Registry and Factory
+export { CommandRegistry } from './registry/CommandRegistry';
 export { CommandFactory } from './factory/CommandFactory';
 
-// Base Classes
+// Base Classes for Extension
 export * from './base';
 
-// Services
+// Dialog Services
 export { BrowserDialogService, MockDialogService } from './services/DialogService';
 export type { DialogService, NotificationType } from './services/DialogService';
 
-// Types
+// Core Types
 export type {
   Command,
   CommandMetadata,
   ExecutionContext,
   ViewMode,
   SortBy,
-  GridLayoutConfig
+  GridLayoutConfig,
+  Panel
 } from './types';
 
 // Command Implementations
@@ -31,3 +34,6 @@ export * from './implementations/file';
 export * from './implementations/navigation';
 export * from './implementations/view';
 export * from './implementations/panel';
+
+// Utility Exports - Note: useCommands hook is in src/hooks/useCommands.ts
+// Import directly: import { useCommands } from '../../hooks/useCommands';

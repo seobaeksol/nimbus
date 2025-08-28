@@ -11,7 +11,28 @@ export interface ExecutionContext {
   selectedFiles: FileInfo[];
   dispatch: AppDispatch;
   clipboardHasFiles: boolean;
-  panels: Record<string, any>; // Panel state for complex operations
+  panels: Record<string, Panel>; // Panel state for complex operations
+  clipboardState: {
+    hasFiles: boolean;
+    files: FileInfo[];
+    operation: 'copy' | 'cut' | null;
+    sourcePanelId: string | null;
+  };
+}
+
+/**
+ * Panel interface for better type safety
+ */
+export interface Panel {
+  id: string;
+  currentPath: string;
+  files: FileInfo[];
+  selectedFiles: string[];
+  viewMode: ViewMode;
+  sortBy: SortBy;
+  sortOrder: 'asc' | 'desc';
+  isLoading: boolean;
+  error: string | null;
 }
 
 /**
