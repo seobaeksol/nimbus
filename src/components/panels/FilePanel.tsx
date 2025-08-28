@@ -10,9 +10,17 @@ import './FilePanel.css';
 
 interface FilePanelProps {
   panel: Panel;
+  isActive?: boolean;
+  addressBarActive?: boolean;
+  onAddressBarFocus?: () => void;
 }
 
-const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
+const FilePanel: React.FC<FilePanelProps> = ({ 
+  panel, 
+  isActive = false, 
+  addressBarActive = false, 
+  onAddressBarFocus 
+}) => {
   const dispatch = useAppDispatch();
   const { dragState, panels } = useAppSelector(state => state.panels);
   const [contextMenu, setContextMenu] = useState<{
@@ -34,7 +42,6 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   });
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverCounter, setDragOverCounter] = useState(0);
-  const [addressBarActive, setAddressBarActive] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,12 +50,8 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Handle Ctrl+L for address bar focus
-      if ((event.ctrlKey || event.metaKey) && event.key === 'l') {
-        event.preventDefault();
-        setAddressBarActive(true);
-        return;
-      }
+      // Only handle keyboard events if this panel is active
+      if (!isActive) return;
 
       const selectedFileInfos = panel.files.filter(f => panel.selectedFiles.includes(f.name));
       
@@ -107,7 +110,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [panel.files, panel.selectedFiles, panel.currentPath]);
+  }, [panel.files, panel.selectedFiles, panel.currentPath, isActive]);
 
   const loadDirectory = async (path: string) => {
     try {
@@ -174,7 +177,6 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
       
       // If successful, update the panel
       dispatch(navigateToPath({ panelId: panel.id, path: resolvedPath }));
-      setAddressBarActive(false);
       
     } catch (error) {
       // Let the error bubble up to the AddressBar component for display
@@ -187,7 +189,7 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   };
 
   const handleAddressBarFocus = () => {
-    setAddressBarActive(false); // Reset the active trigger
+    onAddressBarFocus?.(); // Reset the active trigger
   };
 
   const handleRightClick = (e: React.MouseEvent, file: FileInfo) => {
@@ -590,9 +592,10 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         <div className="panel-header">
           <AddressBar 
             currentPath={panel.currentPath}
-            isActive={false}
+            isActive={addressBarActive}
             onNavigate={handleAddressBarNavigate}
             onError={handleAddressBarError}
+            onFocus={handleAddressBarFocus}
             className="loading-state"
           />
         </div>
@@ -607,9 +610,10 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         <div className="panel-header">
           <AddressBar 
             currentPath={panel.currentPath}
-            isActive={false}
+            isActive={addressBarActive}
             onNavigate={handleAddressBarNavigate}
             onError={handleAddressBarError}
+            onFocus={handleAddressBarFocus}
             className="error-state"
           />
         </div>
