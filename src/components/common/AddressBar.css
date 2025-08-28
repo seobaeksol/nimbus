@@ -1,0 +1,227 @@
+/* AddressBar Component Styles */
+
+.address-bar {
+  flex: 1;
+  min-width: 0;
+  font-family: inherit;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+/* Display Mode */
+.address-bar.display {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.address-bar.display:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #505050;
+}
+
+.address-bar.display:focus {
+  outline: 2px solid #0078d4;
+  outline-offset: -2px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.address-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.address-path {
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.address-edit-hint {
+  opacity: 0;
+  margin-left: 8px;
+  transition: opacity 0.2s ease;
+  flex-shrink: 0;
+}
+
+.address-bar.display:hover .address-edit-hint {
+  opacity: 0.6;
+}
+
+.edit-icon {
+  font-size: 12px;
+  color: #cccccc;
+}
+
+/* Edit Mode */
+.address-bar.editing {
+  background: #3c3c3c;
+  border-radius: 4px;
+  border: 2px solid #0078d4;
+  padding: 4px;
+}
+
+.address-bar.editing.error {
+  border-color: #ff6b6b;
+}
+
+.address-input-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.address-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: 500;
+  padding: 6px 8px;
+  outline: none;
+  line-height: 1.4;
+}
+
+.address-input::placeholder {
+  color: #888888;
+  font-weight: 400;
+}
+
+.address-input::selection {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+.address-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.address-action-button {
+  background: none;
+  border: none;
+  color: #cccccc;
+  font-size: 14px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: all 0.15s ease;
+  font-weight: bold;
+}
+
+.address-action-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.address-action-button.confirm:hover {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+.address-action-button.cancel:hover {
+  background: #ff6b6b;
+  color: #ffffff;
+}
+
+.address-action-button:focus {
+  outline: 2px solid #0078d4;
+  outline-offset: -2px;
+}
+
+/* Error State */
+.address-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 3px;
+  border-left: 3px solid #ff6b6b;
+  animation: errorSlideIn 0.2s ease-out;
+}
+
+@keyframes errorSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .address-bar {
+    font-size: 13px;
+  }
+  
+  .address-input {
+    font-size: 13px;
+    padding: 5px 6px;
+  }
+  
+  .address-action-button {
+    width: 22px;
+    height: 22px;
+    font-size: 12px;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .address-bar.display {
+    border: 1px solid #cccccc;
+  }
+  
+  .address-bar.display:hover {
+    border-color: #ffffff;
+  }
+  
+  .address-bar.editing {
+    border-width: 3px;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .address-bar,
+  .address-action-button,
+  .address-edit-hint,
+  .address-error {
+    transition: none;
+  }
+  
+  .address-error {
+    animation: none;
+  }
+}
+
+/* Focus-visible support for better keyboard navigation */
+.address-bar.display:focus-visible {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: #0078d4;
+}
+
+.address-action-button:focus-visible {
+  outline: 2px solid #0078d4;
+  outline-offset: 1px;
+}

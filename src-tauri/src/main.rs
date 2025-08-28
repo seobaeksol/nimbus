@@ -20,6 +20,8 @@ fn main() {
             files::move_item,
             files::delete_item,
             files::rename_item,
+            files::get_system_paths,
+            files::resolve_path,
             // System commands  
             system::get_system_info,
             system::greet,

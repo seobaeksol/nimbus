@@ -239,3 +239,120 @@ pub async fn create_file(path: String, name: String) -> CommandResult<()> {
     }
 }
 
+/// Get system paths for common directories
+#[command]
+pub async fn get_system_paths() -> CommandResult<serde_json::Value> {
+    let mut paths = serde_json::Map::new();
+
+    // Home directory
+    if let Some(home_dir) = dirs::home_dir() {
+        paths.insert("home".to_string(), serde_json::Value::String(home_dir.to_string_lossy().to_string()));
+    }
+
+    // Common directories
+    if let Some(documents_dir) = dirs::document_dir() {
+        paths.insert("documents".to_string(), serde_json::Value::String(documents_dir.to_string_lossy().to_string()));
+    }
+    
+    if let Some(downloads_dir) = dirs::download_dir() {
+        paths.insert("downloads".to_string(), serde_json::Value::String(downloads_dir.to_string_lossy().to_string()));
+    }
+    
+    if let Some(desktop_dir) = dirs::desktop_dir() {
+        paths.insert("desktop".to_string(), serde_json::Value::String(desktop_dir.to_string_lossy().to_string()));
+    }
+    
+    if let Some(audio_dir) = dirs::audio_dir() {
+        paths.insert("music".to_string(), serde_json::Value::String(audio_dir.to_string_lossy().to_string()));
+    }
+    
+    if let Some(picture_dir) = dirs::picture_dir() {
+        paths.insert("pictures".to_string(), serde_json::Value::String(picture_dir.to_string_lossy().to_string()));
+    }
+    
+    if let Some(video_dir) = dirs::video_dir() {
+        paths.insert("videos".to_string(), serde_json::Value::String(video_dir.to_string_lossy().to_string()));
+    }
+
+    Ok(serde_json::Value::Object(paths))
+}
+
+/// Resolve a path with alias support
+#[command]
+pub async fn resolve_path(input_path: String) -> CommandResult<String> {
+    let trimmed = input_path.trim();
+    
+    // Handle empty input - return home directory
+    if trimmed.is_empty() {
+        if let Some(home_dir) = dirs::home_dir() {
+            return Ok(home_dir.to_string_lossy().to_string());
+        }
+        return Err("Could not determine home directory".to_string());
+    }
+
+    // Handle home directory aliases
+    if trimmed == "~" || trimmed == "~/" {
+        if let Some(home_dir) = dirs::home_dir() {
+            return Ok(home_dir.to_string_lossy().to_string());
+        }
+        return Err("Could not determine home directory".to_string());
+    }
+
+    // Handle tilde expansion
+    if trimmed.starts_with("~/") {
+        if let Some(home_dir) = dirs::home_dir() {
+            let expanded = trimmed.replacen("~", &home_dir.to_string_lossy(), 1);
+            return Ok(expanded);
+        }
+        return Err("Could not determine home directory".to_string());
+    }
+
+    // Handle system directory aliases (case-insensitive)
+    let lower_input = trimmed.to_lowercase();
+    match lower_input.as_str() {
+        "documents" | "docs" => {
+            if let Some(docs_dir) = dirs::document_dir() {
+                return Ok(docs_dir.to_string_lossy().to_string());
+            }
+        },
+        "downloads" | "dl" => {
+            if let Some(downloads_dir) = dirs::download_dir() {
+                return Ok(downloads_dir.to_string_lossy().to_string());
+            }
+        },
+        "desktop" => {
+            if let Some(desktop_dir) = dirs::desktop_dir() {
+                return Ok(desktop_dir.to_string_lossy().to_string());
+            }
+        },
+        "music" => {
+            if let Some(audio_dir) = dirs::audio_dir() {
+                return Ok(audio_dir.to_string_lossy().to_string());
+            }
+        },
+        "pictures" | "pics" => {
+            if let Some(picture_dir) = dirs::picture_dir() {
+                return Ok(picture_dir.to_string_lossy().to_string());
+            }
+        },
+        "videos" | "movies" => {
+            if let Some(video_dir) = dirs::video_dir() {
+                return Ok(video_dir.to_string_lossy().to_string());
+            }
+        },
+        _ => {}
+    }
+
+    // Handle absolute paths - validate and normalize
+    let path = std::path::Path::new(trimmed);
+    
+    // Normalize the path
+    if let Ok(canonical) = path.canonicalize() {
+        Ok(canonical.to_string_lossy().to_string())
+    } else {
+        // If canonicalization fails, return the original path
+        // The FileService.listDirectory() will handle validation
+        Ok(trimmed.to_string())
+    }
+}
+

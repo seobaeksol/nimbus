@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
 import ContextMenu, { ContextMenuItem } from '../common/ContextMenu';
 import ConfirmDialog from '../common/ConfirmDialog';
+import AddressBar from '../common/AddressBar';
 import './FilePanel.css';
 
 interface FilePanelProps {
@@ -33,6 +34,8 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   });
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverCounter, setDragOverCounter] = useState(0);
+  const [addressBarActive, setAddressBarActive] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadDirectory(panel.currentPath);
@@ -40,6 +43,13 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Handle Ctrl+L for address bar focus
+      if ((event.ctrlKey || event.metaKey) && event.key === 'l') {
+        event.preventDefault();
+        setAddressBarActive(true);
+        return;
+      }
+
       const selectedFileInfos = panel.files.filter(f => panel.selectedFiles.includes(f.name));
       
       if (selectedFileInfos.length === 0) return;
@@ -151,6 +161,33 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
   const handleBackClick = () => {
     const parentPath = panel.currentPath.split('/').slice(0, -1).join('/') || '/';
     dispatch(navigateToPath({ panelId: panel.id, path: parentPath }));
+  };
+
+  const handleAddressBarNavigate = async (inputPath: string) => {
+    try {
+      // Resolve the path using the backend
+      const resolvedPath = await FileService.resolvePath(inputPath);
+      
+      // Try to navigate to the resolved path
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      const files = await FileService.listDirectory(resolvedPath);
+      
+      // If successful, update the panel
+      dispatch(navigateToPath({ panelId: panel.id, path: resolvedPath }));
+      setAddressBarActive(false);
+      
+    } catch (error) {
+      // Let the error bubble up to the AddressBar component for display
+      throw error;
+    }
+  };
+
+  const handleAddressBarError = (error: string) => {
+    dispatch(setError({ panelId: panel.id, error }));
+  };
+
+  const handleAddressBarFocus = () => {
+    setAddressBarActive(false); // Reset the active trigger
   };
 
   const handleRightClick = (e: React.MouseEvent, file: FileInfo) => {
@@ -551,7 +588,13 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
     return (
       <div className="file-panel loading">
         <div className="panel-header">
-          <span className="path">{panel.currentPath}</span>
+          <AddressBar 
+            currentPath={panel.currentPath}
+            isActive={false}
+            onNavigate={handleAddressBarNavigate}
+            onError={handleAddressBarError}
+            className="loading-state"
+          />
         </div>
         <div className="loading-content">Loading...</div>
       </div>
@@ -562,7 +605,13 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
     return (
       <div className="file-panel error">
         <div className="panel-header">
-          <span className="path">{panel.currentPath}</span>
+          <AddressBar 
+            currentPath={panel.currentPath}
+            isActive={false}
+            onNavigate={handleAddressBarNavigate}
+            onError={handleAddressBarError}
+            className="error-state"
+          />
         </div>
         <div className="error-content">{panel.error}</div>
       </div>
@@ -590,7 +639,13 @@ const FilePanel: React.FC<FilePanelProps> = ({ panel }) => {
         >
           ←
         </button>
-        <span className="path">{panel.currentPath}</span>
+        <AddressBar 
+          currentPath={panel.currentPath}
+          isActive={addressBarActive}
+          onNavigate={handleAddressBarNavigate}
+          onError={handleAddressBarError}
+          onFocus={handleAddressBarFocus}
+        />
       </div>
       
       <div className="file-list">

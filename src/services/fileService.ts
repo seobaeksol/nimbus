@@ -116,6 +116,32 @@ export class FileService {
   }
 
   /**
+   * Get system paths for common directories
+   */
+  static async getSystemPaths(): Promise<Record<string, string>> {
+    try {
+      const paths = await invoke<Record<string, string>>("get_system_paths");
+      return paths;
+    } catch (error) {
+      console.error("Failed to get system paths:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve a path with alias support
+   */
+  static async resolvePath(inputPath: string): Promise<string> {
+    try {
+      const resolvedPath = await invoke<string>("resolve_path", { inputPath });
+      return resolvedPath;
+    } catch (error) {
+      console.error("Failed to resolve path:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Greet function for testing IPC
    */
   static async greet(name: string): Promise<string> {
