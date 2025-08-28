@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator } from '../../store/slices/panelSlice';
+import { Panel, selectFiles, navigateToPath, setFiles, setLoading, setError, startDrag, endDrag, setDragOperation, addProgressIndicator, updateProgressIndicator, removeProgressIndicator, copyFilesToClipboard, cutFilesToClipboard, clearClipboard } from '../../store/slices/panelSlice';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { FileService } from '../../services/fileService';
 import { FileInfo } from '../../types';
@@ -22,7 +22,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
   onAddressBarFocus 
 }) => {
   const dispatch = useAppDispatch();
-  const { dragState, panels } = useAppSelector(state => state.panels);
+  const { dragState, panels, clipboardState } = useAppSelector(state => state.panels);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -55,6 +55,14 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
       const selectedFileInfos = panel.files.filter(f => panel.selectedFiles.includes(f.name));
       
+      // Handle Ctrl+V (paste) even without selection
+      if ((event.ctrlKey || event.metaKey) && event.key === 'v') {
+        event.preventDefault();
+        handlePasteFiles();
+        return;
+      }
+      
+      // For other operations, require file selection
       if (selectedFileInfos.length === 0) return;
       
       switch (event.key) {
@@ -85,26 +93,23 @@ const FilePanel: React.FC<FilePanelProps> = ({
         case 'c':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            // TODO: Implement copy to clipboard
-            console.log('Copy files:', selectedFileInfos.map(f => f.name));
+            dispatch(copyFilesToClipboard({ 
+              panelId: panel.id, 
+              files: selectedFileInfos 
+            }));
           }
           break;
           
         case 'x':
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            // TODO: Implement cut to clipboard
-            console.log('Cut files:', selectedFileInfos.map(f => f.name));
+            dispatch(cutFilesToClipboard({ 
+              panelId: panel.id, 
+              files: selectedFileInfos 
+            }));
           }
           break;
           
-        case 'v':
-          if (event.ctrlKey || event.metaKey) {
-            event.preventDefault();
-            // TODO: Implement paste from clipboard
-            console.log('Paste files to:', panel.currentPath);
-          }
-          break;
       }
     };
 
@@ -190,6 +195,116 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   const handleAddressBarFocus = () => {
     onAddressBarFocus?.(); // Reset the active trigger
+  };
+
+  const handlePasteFiles = async () => {
+    if (!clipboardState.hasFiles || !clipboardState.files.length) {
+      return; // Nothing to paste
+    }
+
+    // Don't paste to the same location for cut operations
+    if (clipboardState.operation === 'cut' && clipboardState.sourcePanelId === panel.id) {
+      return;
+    }
+
+    let currentProgressId: string | null = null;
+
+    try {
+      dispatch(setLoading({ panelId: panel.id, isLoading: true }));
+      
+      const filesToPaste = clipboardState.files;
+      const operation = clipboardState.operation === 'cut' ? 'move' : 'copy';
+      
+      // Create progress indicator
+      const progressId = `paste-${Date.now()}`;
+      const totalFiles = filesToPaste.length;
+      currentProgressId = progressId;
+      
+      dispatch(addProgressIndicator({
+        id: progressId,
+        operation,
+        fileName: totalFiles > 1 ? `${totalFiles} items` : filesToPaste[0].name,
+        progress: 0,
+        totalFiles,
+        currentFile: 0,
+        isComplete: false
+      }));
+
+      for (let i = 0; i < filesToPaste.length; i++) {
+        const file = filesToPaste[i];
+
+        // Update progress
+        dispatch(updateProgressIndicator({
+          id: progressId,
+          updates: {
+            fileName: file.name,
+            currentFile: i + 1,
+            progress: ((i + 1) / totalFiles) * 100
+          }
+        }));
+
+        const srcPath = file.path;
+        const dstPath = panel.currentPath === '/' 
+          ? `/${file.name}` 
+          : `${panel.currentPath}/${file.name}`;
+
+        if (operation === 'copy') {
+          await FileService.copyItem(srcPath, dstPath);
+        } else {
+          await FileService.moveItem(srcPath, dstPath);
+        }
+      }
+
+      // Mark progress as complete
+      dispatch(updateProgressIndicator({
+        id: progressId,
+        updates: {
+          isComplete: true,
+          progress: 100
+        }
+      }));
+
+      // Auto-remove completed progress after 3 seconds
+      setTimeout(() => {
+        dispatch(removeProgressIndicator(progressId));
+      }, 3000);
+
+      // Refresh current panel
+      await loadDirectory(panel.currentPath);
+      
+      // If it was a cut operation, refresh source panel and clear clipboard
+      if (operation === 'move') {
+        if (clipboardState.sourcePanelId && clipboardState.sourcePanelId !== panel.id) {
+          const sourcePanel = panels[clipboardState.sourcePanelId];
+          if (sourcePanel) {
+            dispatch(navigateToPath({ 
+              panelId: clipboardState.sourcePanelId, 
+              path: sourcePanel.currentPath 
+            }));
+          }
+        }
+        dispatch(clearClipboard());
+      }
+      
+    } catch (error) {
+      console.error('Failed to paste files:', error);
+      
+      // Update progress indicator with error
+      if (currentProgressId) {
+        dispatch(updateProgressIndicator({
+          id: currentProgressId,
+          updates: {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            isComplete: false
+          }
+        }));
+      }
+      
+      dispatch(setError({ 
+        panelId: panel.id, 
+        error: `Failed to paste files: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
   };
 
   const handleRightClick = (e: React.MouseEvent, file: FileInfo) => {
@@ -493,6 +608,35 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
       items.push({ separator: true } as ContextMenuItem);
 
+      // Clipboard operations
+      items.push({
+        id: 'copy',
+        label: 'Copy',
+        icon: '📋',
+        shortcut: 'Ctrl+C',
+        onClick: () => {
+          dispatch(copyFilesToClipboard({ 
+            panelId: panel.id, 
+            files: selectedFiles 
+          }));
+        },
+      });
+
+      items.push({
+        id: 'cut',
+        label: 'Cut',
+        icon: '✂️',
+        shortcut: 'Ctrl+X',
+        onClick: () => {
+          dispatch(cutFilesToClipboard({ 
+            panelId: panel.id, 
+            files: selectedFiles 
+          }));
+        },
+      });
+
+      items.push({ separator: true } as ContextMenuItem);
+
       items.push({
         id: 'delete',
         label: selectedFiles.length === 1 ? 'Delete' : `Delete ${selectedFiles.length} items`,
@@ -509,6 +653,22 @@ const FilePanel: React.FC<FilePanelProps> = ({
             () => handleDeleteFiles(selectedFiles),
             'danger'
           );
+        },
+      });
+
+      items.push({ separator: true } as ContextMenuItem);
+    }
+
+    // Add paste option if clipboard has files
+    if (clipboardState.hasFiles) {
+      items.push({
+        id: 'paste',
+        label: `Paste ${clipboardState.files.length} item${clipboardState.files.length > 1 ? 's' : ''}`,
+        icon: '📋',
+        shortcut: 'Ctrl+V',
+        disabled: clipboardState.operation === 'cut' && clipboardState.sourcePanelId === panel.id,
+        onClick: () => {
+          handlePasteFiles();
         },
       });
 
@@ -558,6 +718,12 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   const formatDate = (isoString: string): string => {
     return new Date(isoString).toLocaleDateString();
+  };
+
+  const isFileCut = (file: FileInfo): boolean => {
+    return clipboardState.operation === 'cut' && 
+           clipboardState.sourcePanelId === panel.id &&
+           clipboardState.files.some(clipFile => clipFile.path === file.path);
   };
 
   const sortedFiles = React.useMemo(() => {
@@ -658,7 +824,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
             key={file.name}
             className={`file-item ${panel.selectedFiles.includes(file.name) ? 'selected' : ''} ${
               dragState.isDragging && dragState.draggedFiles.includes(file.name) ? 'dragging' : ''
-            }`}
+            } ${isFileCut(file) ? 'cut' : ''}`}
             draggable
             onClick={(e) => handleFileClick(file, e)}
             onDoubleClick={() => handleFileDoubleClick(file)}

@@ -26,6 +26,14 @@ export interface DragState {
   dragOperation: 'move' | 'copy' | null;
 }
 
+export interface ClipboardState {
+  hasFiles: boolean;
+  files: FileInfo[];
+  sourcePanelId: string | null;
+  operation: 'copy' | 'cut' | null;
+  timestamp: number;
+}
+
 export interface ProgressInfo {
   id: string;
   operation: 'copy' | 'move' | 'delete';
@@ -44,6 +52,7 @@ export interface PanelState {
   panelOrder: string[];
   presetLayouts: GridLayout[];
   dragState: DragState;
+  clipboardState: ClipboardState;
   progressIndicators: ProgressInfo[];
 }
 
@@ -81,6 +90,13 @@ const initialState: PanelState = {
     draggedFiles: [],
     sourcePanelId: null,
     dragOperation: null,
+  },
+  clipboardState: {
+    hasFiles: false,
+    files: [],
+    sourcePanelId: null,
+    operation: null,
+    timestamp: 0,
   },
   progressIndicators: [],
 };
@@ -237,6 +253,39 @@ const panelSlice = createSlice({
     clearCompletedProgress: (state) => {
       state.progressIndicators = state.progressIndicators.filter(p => !p.isComplete && !p.error);
     },
+
+    // Clipboard actions
+    copyFilesToClipboard: (state, action: PayloadAction<{ panelId: string; files: FileInfo[] }>) => {
+      const { panelId, files } = action.payload;
+      state.clipboardState = {
+        hasFiles: true,
+        files,
+        sourcePanelId: panelId,
+        operation: 'copy',
+        timestamp: Date.now(),
+      };
+    },
+
+    cutFilesToClipboard: (state, action: PayloadAction<{ panelId: string; files: FileInfo[] }>) => {
+      const { panelId, files } = action.payload;
+      state.clipboardState = {
+        hasFiles: true,
+        files,
+        sourcePanelId: panelId,
+        operation: 'cut',
+        timestamp: Date.now(),
+      };
+    },
+
+    clearClipboard: (state) => {
+      state.clipboardState = {
+        hasFiles: false,
+        files: [],
+        sourcePanelId: null,
+        operation: null,
+        timestamp: 0,
+      };
+    },
   },
 });
 
@@ -257,6 +306,9 @@ export const {
   updateProgressIndicator,
   removeProgressIndicator,
   clearCompletedProgress,
+  copyFilesToClipboard,
+  cutFilesToClipboard,
+  clearClipboard,
 } = panelSlice.actions;
 
 export default panelSlice.reducer;

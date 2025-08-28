@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store';
-import { setActivePanel } from '../../store/slices/panelSlice';
+import { setActivePanel, setLoading, setError, navigateToPath } from '../../store/slices/panelSlice';
+import { FileService } from '../../services/fileService';
 import FilePanel from '../panels/FilePanel';
 import './MultiPanelLayout.css';
 
@@ -11,6 +12,44 @@ const MultiPanelLayout: React.FC = () => {
 
   const handlePanelClick = (panelId: string) => {
     dispatch(setActivePanel(panelId));
+  };
+
+  const handleCreateFolder = async (panelId: string, name: string) => {
+    try {
+      const panel = panels[panelId];
+      if (!panel) return;
+
+      dispatch(setLoading({ panelId, isLoading: true }));
+      await FileService.createDirectory(panel.currentPath, name);
+      
+      // Refresh the panel to show the new folder
+      dispatch(navigateToPath({ panelId, path: panel.currentPath }));
+    } catch (error) {
+      console.error('Failed to create folder:', error);
+      dispatch(setError({ 
+        panelId, 
+        error: `Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
+  };
+
+  const handleCreateFile = async (panelId: string, name: string) => {
+    try {
+      const panel = panels[panelId];
+      if (!panel) return;
+
+      dispatch(setLoading({ panelId, isLoading: true }));
+      await FileService.createFile(panel.currentPath, name);
+      
+      // Refresh the panel to show the new file
+      dispatch(navigateToPath({ panelId, path: panel.currentPath }));
+    } catch (error) {
+      console.error('Failed to create file:', error);
+      dispatch(setError({ 
+        panelId, 
+        error: `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`
+      }));
+    }
   };
 
   // Global keyboard shortcut handler - only affects the active panel
@@ -26,8 +65,28 @@ const MultiPanelLayout: React.FC = () => {
         return;
       }
 
-      // Add other global shortcuts here in the future
-      // Examples: Ctrl+N (new tab), Ctrl+W (close tab), etc.
+      // Handle Ctrl+N for new folder
+      if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
+        event.preventDefault();
+        const name = prompt('Enter folder name:');
+        if (name) {
+          handleCreateFolder(activePanelId, name);
+        }
+        return;
+      }
+
+      // Handle Ctrl+T for new file
+      if ((event.ctrlKey || event.metaKey) && event.key === 't') {
+        event.preventDefault();
+        const name = prompt('Enter file name:');
+        if (name) {
+          handleCreateFile(activePanelId, name);
+        }
+        return;
+      }
+
+      // Future shortcuts can be added here
+      // Examples: Ctrl+W (close tab), F3 (view), F4 (edit), etc.
     };
 
     document.addEventListener('keydown', handleGlobalKeyDown);
