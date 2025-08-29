@@ -7,11 +7,8 @@
 
 // Primary Command Services
 export { CommandService } from './commands/services/CommandService';
-export { CommandExecutorService } from './commands/services/CommandExecutorService';
 
 // Core Command System Components
-export { CommandSystem } from './commands/CommandSystem';
-export { CommandRegistry } from './commands/registry/CommandRegistry';
 export { CommandFactory } from './commands/factory/CommandFactory';
 
 // Base Classes for Creating Custom Commands
@@ -19,7 +16,7 @@ export { BaseCommand } from './commands/base/BaseCommand';
 export { FileOperationCommand } from './commands/base/FileOperationCommand';
 
 // Dialog Services
-export { BrowserDialogService, MockDialogService } from './commands/services/DialogService';
+export { BrowserDialogService } from './commands/services/DialogService';
 export type { DialogService, NotificationType } from './commands/services/DialogService';
 
 // Core Types and Interfaces

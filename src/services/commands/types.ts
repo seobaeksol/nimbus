@@ -1,4 +1,3 @@
-import { R } from "vitest/dist/chunks/environment.d.cL3nLXbE.js";
 import { AppDispatch } from "../../store";
 import { FileInfo } from "./ipc/file";
 

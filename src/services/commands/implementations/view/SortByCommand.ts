@@ -6,12 +6,12 @@ import { setSorting } from "@/store/slices/panelSlice";
 
 export type SortByCommandOptions = {
   panelId: string;
-  sortBy: SortBy;
+  sortBy?: SortBy;
 };
 
 export class SortByCommand extends BaseCommand<SortByCommandOptions> {
   constructor(
-    private sortBy: SortBy,
+    private readonly sortBy: SortBy,
     dispatch: AppDispatch,
     dialogService: DialogService
   ) {
@@ -35,14 +35,14 @@ export class SortByCommand extends BaseCommand<SortByCommandOptions> {
   }
 
   async execute(
-    context: ExecutionContext,
+    _context: ExecutionContext,
     options: SortByCommandOptions
   ): Promise<void> {
     await this.withErrorHandling(async () => {
       this.dispatch(
-        setSorting({ panelId: options.panelId, sortBy: options.sortBy })
+        setSorting({ panelId: options.panelId, sortBy: options.sortBy || this.sortBy })
       );
-      this.showSuccess(`Sorted by ${options.sortBy}`);
-    }, `Failed to sort by ${options.sortBy}`);
+      this.showSuccess(`Sorted by ${options.sortBy || this.sortBy}`);
+    }, `Failed to sort by ${options.sortBy || this.sortBy}`);
   }
 }

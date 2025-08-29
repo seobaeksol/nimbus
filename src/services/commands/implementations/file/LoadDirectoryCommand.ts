@@ -2,7 +2,6 @@ import { FileOperationCommand } from "../../base/FileOperationCommand";
 import { CommandMetadata, ExecutionContext } from "../../types";
 import { DialogService } from "../../services/DialogService";
 import {
-  copyFilesToClipboard,
   navigateToPath,
   setFiles,
 } from "@/store/slices/panelSlice";
@@ -27,7 +26,7 @@ export class LoadDirectoryCommand extends FileOperationCommand<LoadDirectoryComm
     super(metadata, dispatch, dialogService);
   }
 
-  canExecute(context: ExecutionContext): boolean {
+  canExecute(_context: ExecutionContext): boolean {
     return true;
   }
 

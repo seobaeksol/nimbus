@@ -6,12 +6,12 @@ import { AppDispatch } from "@/store";
 
 export type SetViewModeCommandOptions = {
   panelId: string;
-  viewMode: ViewMode;
+  viewMode?: ViewMode;
 };
 
 export class SetViewModeCommand extends BaseCommand<SetViewModeCommandOptions> {
   constructor(
-    private viewMode: ViewMode,
+    private readonly viewMode: ViewMode,
     dispatch: AppDispatch,
     dialogService: DialogService
   ) {
@@ -34,14 +34,14 @@ export class SetViewModeCommand extends BaseCommand<SetViewModeCommandOptions> {
   }
 
   async execute(
-    context: ExecutionContext,
+    _context: ExecutionContext,
     options: SetViewModeCommandOptions
   ): Promise<void> {
     await this.withErrorHandling(async () => {
       this.dispatch(
-        setViewMode({ panelId: options.panelId, viewMode: options.viewMode })
+        setViewMode({ panelId: options.panelId, viewMode: options.viewMode || this.viewMode })
       );
-      this.showSuccess(`Switched to ${options.viewMode} view`);
-    }, `Failed to set ${options.viewMode} view`);
+      this.showSuccess(`Switched to ${options.viewMode || this.viewMode} view`);
+    }, `Failed to set ${options.viewMode || this.viewMode} view`);
   }
 }

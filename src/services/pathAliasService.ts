@@ -1,9 +1,9 @@
 /**
- * Path Alias Service
- * Handles path resolution, aliases, and cross-platform path normalization
+ * Path Alias Service for Nimbus File Manager
+ * 
+ * Provides aliases for common directories and paths to enhance user experience
+ * and reduce typing. Supports system directories like Documents, Downloads, Desktop, etc.
  */
-
-import { getSystemPaths, resolvePath } from "./commands/ipc/file";
 
 export interface SystemPaths {
   home: string;
@@ -15,201 +15,233 @@ export interface SystemPaths {
   videos: string;
 }
 
-export interface UserAlias {
+export interface PathAlias {
   alias: string;
   path: string;
   description?: string;
+  systemAlias: boolean;
 }
 
 export class PathAliasService {
+  private static instance: PathAliasService | null = null;
   private static systemPaths: SystemPaths | null = null;
-  private static userAliases: Map<string, UserAlias> = new Map();
+  private static userAliases: Map<string, PathAlias> = new Map();
+  private static initialized = false;
+
+  private constructor() {}
 
   /**
-   * Initialize with system paths from backend
+   * Get the singleton instance
+   */
+  static getInstance(): PathAliasService {
+    if (!this.instance) {
+      this.instance = new PathAliasService();
+    }
+    return this.instance;
+  }
+
+  /**
+   * Initialize the service with system paths
    */
   static async initialize(): Promise<void> {
+    if (this.initialized) return;
+
     try {
-      const backendPaths = await getSystemPaths();
-
-      this.systemPaths = {
-        home: backendPaths.home || "/",
-        documents: backendPaths.documents || `${backendPaths.home}/Documents`,
-        downloads: backendPaths.downloads || `${backendPaths.home}/Downloads`,
-        desktop: backendPaths.desktop || `${backendPaths.home}/Desktop`,
-        music: backendPaths.music || `${backendPaths.home}/Music`,
-        pictures: backendPaths.pictures || `${backendPaths.home}/Pictures`,
-        videos: backendPaths.videos || `${backendPaths.home}/Videos`,
-      };
-
-      this.setupDefaultAliases();
-    } catch (error) {
-      console.error(
-        "Failed to initialize system paths from backend, falling back to detection:",
-        error
-      );
-      // Fallback to client-side detection if backend fails
       this.systemPaths = await this.detectSystemPaths();
       this.setupDefaultAliases();
+      this.initialized = true;
+    } catch (error) {
+      console.error('Failed to initialize PathAliasService:', error);
+      // Continue with minimal functionality
+      this.initialized = true;
     }
   }
 
   /**
-   * Resolve an alias or path to a full system path
+   * Resolve a path that might contain aliases
+   * 
+   * @param inputPath - The input path that might contain aliases
+   * @param currentPath - The current working directory (for relative paths)
+   * @returns Resolved absolute path
    */
-  static async resolvePath(input: string): Promise<string> {
-    if (!this.systemPaths) {
+  static async resolvePath(inputPath: string, currentPath: string = '/'): Promise<string> {
+    if (!this.initialized) {
       await this.initialize();
     }
 
-    try {
-      // Use the backend's resolve_path command which handles all the complexity
-      // including tilde expansion, system aliases, and path normalization
-      const resolvedPath = await resolvePath(input);
-      return resolvedPath;
-    } catch (error) {
-      console.error("Backend path resolution failed, using fallback:", error);
+    // Trim whitespace
+    let path = inputPath.trim();
 
-      // Fallback to client-side resolution if backend fails
-      const normalizedInput = input.trim();
+    // Handle empty input
+    if (!path) return currentPath;
 
-      // Handle empty input
-      if (!normalizedInput) {
-        return this.systemPaths!.home;
+    // Handle home directory alias (~)
+    if (path === '~') {
+      return this.systemPaths?.home || '/';
+    }
+
+    if (path.startsWith('~/')) {
+      const homePath = this.systemPaths?.home || '/';
+      return this.normalizePath(`${homePath}/${path.slice(2)}`);
+    }
+
+    // Check system aliases (e.g., documents, downloads, desktop)
+    if (!path.includes('/') && !path.includes('\\')) {
+      const systemAliases = this.getSystemAliases();
+      if (systemAliases.has(path.toLowerCase())) {
+        return systemAliases.get(path.toLowerCase())!;
       }
 
-      // Handle root path
-      if (normalizedInput === "/") {
-        return "/";
-      }
-
-      // Handle home directory aliases
-      if (normalizedInput === "~" || normalizedInput === "~/") {
-        return this.systemPaths!.home;
-      }
-
-      // Handle tilde expansion
-      if (normalizedInput.startsWith("~/")) {
-        return normalizedInput.replace("~", this.systemPaths!.home);
-      }
-
-      // Handle user-defined aliases
-      const lowerInput = normalizedInput.toLowerCase();
-      if (this.userAliases.has(lowerInput)) {
-        const alias = this.userAliases.get(lowerInput)!;
+      // Check user-defined aliases
+      const alias = this.userAliases.get(path.toLowerCase());
+      if (alias) {
         return alias.path;
       }
-
-      // Handle common system directory aliases (case-insensitive)
-      const systemAliases = this.getSystemAliases();
-      if (systemAliases.has(lowerInput)) {
-        return systemAliases.get(lowerInput)!;
-      }
-
-      // Return the path as-is if no alias matched
-      return normalizedInput;
     }
-  }
 
-  /**
-   * Get all available aliases for autocomplete/suggestions
-   */
-  static getAvailableAliases(): {
-    alias: string;
-    path: string;
-    description: string;
-  }[] {
-    const aliases: { alias: string; path: string; description: string }[] = [];
+    // Handle absolute paths
+    if (this.isAbsolutePath(path)) {
+      return this.normalizePath(path);
+    }
 
-    // System aliases
-    aliases.push(
-      {
-        alias: "~",
-        path: this.systemPaths?.home || "/",
-        description: "Home directory",
-      },
-      { alias: "/", path: "/", description: "Root directory" },
-      {
-        alias: "Documents",
-        path: this.systemPaths?.documents || "~/Documents",
-        description: "Documents folder",
-      },
-      {
-        alias: "Downloads",
-        path: this.systemPaths?.downloads || "~/Downloads",
-        description: "Downloads folder",
-      },
-      {
-        alias: "Desktop",
-        path: this.systemPaths?.desktop || "~/Desktop",
-        description: "Desktop folder",
-      },
-      {
-        alias: "Music",
-        path: this.systemPaths?.music || "~/Music",
-        description: "Music folder",
-      },
-      {
-        alias: "Pictures",
-        path: this.systemPaths?.pictures || "~/Pictures",
-        description: "Pictures folder",
-      },
-      {
-        alias: "Videos",
-        path: this.systemPaths?.videos || "~/Videos",
-        description: "Videos folder",
-      }
-    );
+    // Handle relative paths - resolve against current directory
+    if (path.startsWith('./')) {
+      path = path.slice(2);
+    }
 
-    // User-defined aliases
-    this.userAliases.forEach((userAlias) => {
-      aliases.push({
-        alias: userAlias.alias,
-        path: userAlias.path,
-        description:
-          userAlias.description || `Custom alias for ${userAlias.path}`,
-      });
-    });
+    const resolvedPath = currentPath.endsWith('/') 
+      ? `${currentPath}${path}`
+      : `${currentPath}/${path}`;
 
-    return aliases;
+    return this.normalizePath(resolvedPath);
   }
 
   /**
    * Add a user-defined alias
    */
-  static addUserAlias(alias: string, path: string, description?: string): void {
-    this.userAliases.set(alias.toLowerCase(), {
+  static addAlias(alias: string, path: string, description?: string): boolean {
+    if (!this.isValidAliasName(alias)) {
+      throw new Error(`Invalid alias name: ${alias}`);
+    }
+
+    // Don't allow overriding system aliases
+    const systemAliases = this.getSystemAliases();
+    if (systemAliases.has(alias.toLowerCase())) {
+      throw new Error(`Cannot override system alias: ${alias}`);
+    }
+
+    const pathAlias: PathAlias = {
       alias: alias.toLowerCase(),
-      path,
+      path: this.normalizePath(path),
       description,
-    });
+      systemAlias: false
+    };
+
+    this.userAliases.set(alias.toLowerCase(), pathAlias);
+    return true;
   }
 
   /**
    * Remove a user-defined alias
    */
-  static removeUserAlias(alias: string): boolean {
+  static removeAlias(alias: string): boolean {
     return this.userAliases.delete(alias.toLowerCase());
   }
 
   /**
-   * Get user-defined aliases
+   * Get all available aliases
    */
-  static getUserAliases(): UserAlias[] {
-    return Array.from(this.userAliases.values());
+  static getAllAliases(): PathAlias[] {
+    const systemAliases = this.getSystemAliases();
+    const aliases: PathAlias[] = [];
+
+    // Add system aliases
+    for (const [alias, path] of systemAliases) {
+      aliases.push({
+        alias,
+        path,
+        systemAlias: true,
+        description: `System directory: ${path}`
+      });
+    }
+
+    // Add user aliases
+    aliases.push(...Array.from(this.userAliases.values()));
+
+    return aliases.sort((a, b) => a.alias.localeCompare(b.alias));
+  }
+
+  /**
+   * Search aliases by name or path
+   */
+  static searchAliases(query: string): PathAlias[] {
+    const allAliases = this.getAllAliases();
+    const lowerQuery = query.toLowerCase();
+
+    return allAliases.filter(alias => 
+      alias.alias.toLowerCase().includes(lowerQuery) ||
+      alias.path.toLowerCase().includes(lowerQuery) ||
+      (alias.description && alias.description.toLowerCase().includes(lowerQuery))
+    );
+  }
+
+  /**
+   * Get system paths
+   */
+  static getSystemPaths(): SystemPaths | null {
+    return this.systemPaths;
+  }
+
+  /**
+   * Clear all user-defined aliases
+   */
+  static clearUserAliases(): void {
+    this.userAliases.clear();
+  }
+
+  /**
+   * Export aliases to JSON
+   */
+  static exportAliases(): string {
+    const userAliases = Array.from(this.userAliases.values());
+    return JSON.stringify(userAliases, null, 2);
+  }
+
+  /**
+   * Import aliases from JSON
+   */
+  static importAliases(jsonData: string): number {
+    try {
+      const aliases: PathAlias[] = JSON.parse(jsonData);
+      let imported = 0;
+
+      for (const alias of aliases) {
+        if (this.isValidAliasName(alias.alias)) {
+          this.userAliases.set(alias.alias.toLowerCase(), {
+            ...alias,
+            systemAlias: false // Force user alias
+          });
+          imported++;
+        }
+      }
+
+      return imported;
+    } catch (error) {
+      throw new Error(`Failed to import aliases: ${error}`);
+    }
   }
 
   /**
    * Detect system paths based on platform
    */
   private static async detectSystemPaths(): Promise<SystemPaths> {
-    const userAgent = navigator.userAgent;
+    // const userAgent = navigator.userAgent;
     const platform = navigator.platform;
 
     // Detect OS
     const isMac = /Mac|iPhone|iPod|iPad/.test(platform);
     const isWindows = /Win/.test(platform);
-    const isLinux = /Linux/.test(platform) && !/Android/.test(userAgent);
+    // const isLinux = /Linux/.test(platform) && !/Android/.test(userAgent);
 
     // Get username (simplified - in real implementation this would come from backend)
     const username = "user"; // Placeholder
