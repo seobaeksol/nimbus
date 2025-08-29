@@ -1,20 +1,12 @@
-import { BaseCommand } from './BaseCommand';
-import { ExecutionContext } from '../types';
-import { CommandExecutorService } from '../services/CommandExecutorService';
-
+import { BaseCommand } from "./BaseCommand";
+import { ExecutionContext } from "../types";
+import { resolvePath } from "../ipc/file";
+import { navigateToPath } from "@/store/slices/panelSlice";
 /**
  * Specialized base class for navigation operations
  * Provides common functionality for directory navigation commands
  */
 export abstract class NavigationCommand extends BaseCommand {
-  
-  protected constructor(
-    metadata: any,
-    protected executor: CommandExecutorService,
-    protected dialogService: any
-  ) {
-    super(metadata);
-  }
   /**
    * Navigate to path with error handling and validation
    */
@@ -22,28 +14,15 @@ export abstract class NavigationCommand extends BaseCommand {
     context: ExecutionContext,
     path: string
   ): Promise<void> {
-    await this.withErrorHandling(
-      async () => {
-        await this.executor.navigateToPath(context.panelId, path);
-      },
-      'Navigation failed'
-    );
+    await this.withErrorHandling(async () => {
+      await this.navigateToPath(context.panelId, path);
+    }, "Navigation failed");
   }
 
-  /**
-   * Navigate using CommandExecutor methods with error handling
-   */
-  protected async navigateUsingMethod(
-    context: ExecutionContext,
-    method: (panelId: string) => Promise<void>,
-    methodName: string
-  ): Promise<void> {
-    await this.withErrorHandling(
-      async () => {
-        await method(context.panelId);
-      },
-      `${methodName} failed`
-    );
+  async navigateToPath(panelId: string, inputPath: string): Promise<void> {
+    const resolvedPath = await resolvePath(inputPath);
+
+    this.dispatch(navigateToPath({ panelId, path: resolvedPath }));
   }
 
   /**
@@ -51,7 +30,7 @@ export abstract class NavigationCommand extends BaseCommand {
    */
   protected validateNavigationContext(context: ExecutionContext): void {
     if (!context.panelId) {
-      throw new Error('No active panel for navigation');
+      throw new Error("No active panel for navigation");
     }
 
     const panel = context.panels[context.panelId];
@@ -65,7 +44,7 @@ export abstract class NavigationCommand extends BaseCommand {
    */
   canExecute(context: ExecutionContext): boolean {
     if (!super.canExecute(context)) return false;
-    
+
     try {
       this.validateNavigationContext(context);
       return true;

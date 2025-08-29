@@ -1,21 +1,27 @@
-import { FileOperationCommand } from '../../base/FileOperationCommand';
-import { CommandMetadata, ExecutionContext } from '../../types';
-import { CommandExecutorService } from '../../services/CommandExecutorService';
-import { DialogService } from '../../services/DialogService';
-import { FileInfo } from '../../../../types';
+import { FileOperationCommand } from "../../base/FileOperationCommand";
+import { CommandMetadata, ExecutionContext } from "../../types";
+import { DialogService } from "../../services/DialogService";
+import { AppDispatch } from "@/store";
+import {
+  addProgressIndicator,
+  removeProgressIndicator,
+  selectFiles,
+  updateProgressIndicator,
+} from "@/store/slices/panelSlice";
+import { deleteItem } from "../../ipc/file";
 
 export class DeleteFilesCommand extends FileOperationCommand {
-  constructor(executor: CommandExecutorService, dialogService: DialogService) {
+  constructor(dispatch: AppDispatch, dialogService: DialogService) {
     const metadata: CommandMetadata = {
-      id: 'delete-files',
-      label: 'Delete',
-      category: 'File',
-      description: 'Delete selected files and folders',
-      icon: 'trash',
-      shortcut: 'Delete'
+      id: "delete-files",
+      label: "Delete",
+      category: "File",
+      description: "Delete selected files and folders",
+      icon: "trash",
+      shortcut: "Delete",
     };
-    
-    super(metadata, executor, dialogService);
+
+    super(metadata, dispatch, dialogService);
   }
 
   protected getRequiredSelectionCount(): number {
@@ -23,31 +29,85 @@ export class DeleteFilesCommand extends FileOperationCommand {
   }
 
   async execute(context: ExecutionContext): Promise<void> {
-    await this.withErrorHandling(
-      async () => {
-        this.validatePanel(context);
+    await this.withErrorHandling(async () => {
+      this.validatePanel(context);
 
-        const selectedFiles = this.getSelectedFiles(context);
-        if (selectedFiles.length === 0) {
-          this.showWarning('No files selected for deletion');
-          return;
+      const selectedFiles = this.getSelectedFiles(context);
+      if (selectedFiles.length === 0) {
+        this.showWarning("No files selected for deletion");
+        return;
+      }
+
+      const confirmMessage = this.generateConfirmationMessage(
+        "delete",
+        selectedFiles
+      );
+      const confirmed = await this.dialogService.confirm(confirmMessage);
+
+      if (!confirmed) {
+        this.showInfo("Delete operation cancelled");
+        return;
+      }
+
+      // Create progress indicator for multiple files
+      const progressId =
+        selectedFiles.length > 1 ? `delete-${Date.now()}` : null;
+      if (progressId) {
+        this.dispatch(
+          addProgressIndicator({
+            id: progressId,
+            operation: "delete",
+            fileName:
+              selectedFiles.length > 1
+                ? `${selectedFiles.length} items`
+                : selectedFiles[0].name,
+            progress: 0,
+            totalFiles: selectedFiles.length,
+            currentFile: 0,
+            isComplete: false,
+          })
+        );
+      }
+
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+
+        if (progressId) {
+          this.dispatch(
+            updateProgressIndicator({
+              id: progressId,
+              updates: {
+                fileName: file.name,
+                currentFile: i + 1,
+                progress: ((i + 1) / selectedFiles.length) * 100,
+              },
+            })
+          );
         }
 
-        const confirmMessage = this.generateConfirmationMessage('delete', selectedFiles);
-        const confirmed = await this.dialogService.confirm(confirmMessage);
+        await deleteItem(file.path);
+      }
 
-        if (!confirmed) {
-          this.showInfo('Delete operation cancelled');
-          return;
-        }
+      if (progressId) {
+        this.dispatch(
+          updateProgressIndicator({
+            id: progressId,
+            updates: { isComplete: true, progress: 100 },
+          })
+        );
 
-        // Use executor service directly for better integration
-        await this.executor.deleteFiles(context.panelId, selectedFiles);
+        setTimeout(() => {
+          this.dispatch(removeProgressIndicator(progressId));
+        }, 3000);
+      }
 
-        const fileWord = selectedFiles.length === 1 ? 'item' : 'items';
-        this.showSuccess(`Deleted ${selectedFiles.length} ${fileWord}`);
-      },
-      'Failed to delete files'
-    );
+      // Clear selection and refresh
+      this.dispatch(selectFiles({ panelId: context.panelId, fileNames: [] }));
+
+      // TODO: Get current path from context and refresh
+
+      const fileWord = selectedFiles.length === 1 ? "item" : "items";
+      this.showSuccess(`Deleted ${selectedFiles.length} ${fileWord}`);
+    }, "Failed to delete files");
   }
 }

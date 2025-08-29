@@ -1,24 +1,29 @@
-import { BaseCommand } from './BaseCommand';
-import { ExecutionContext } from '../types';
-import { FileInfo } from '../../../types';
+import { BaseCommand } from "./BaseCommand";
+import { ExecutionContext } from "../types";
+import { FileInfo } from "../ipc/file";
 
 /**
  * Specialized base class for file operations
  * Provides common functionality for file manipulation commands
  */
-export abstract class FileOperationCommand extends BaseCommand {
+export abstract class FileOperationCommand<
+  T extends Record<string, unknown> = Record<string, never>,
+> extends BaseCommand<T> {
   /**
    * Check if command requires file selection
    */
-  protected requiresSelection(context: ExecutionContext, minCount = 1): boolean {
+  protected requiresSelection(
+    context: ExecutionContext,
+    minCount = 1
+  ): boolean {
     return context.selectedFiles.length >= minCount;
   }
 
   /**
    * Check if command can execute based on selection requirements
    */
-  canExecute(context: ExecutionContext): boolean {
-    if (!super.canExecute(context)) return false;
+  canExecute(context: ExecutionContext, options?: T): boolean {
+    if (!super.canExecute(context, options)) return false;
     return this.getRequiredSelectionCount() <= context.selectedFiles.length;
   }
 
@@ -59,19 +64,21 @@ export abstract class FileOperationCommand extends BaseCommand {
     operationName: string
   ): Promise<T[]> {
     const results: T[] = [];
-    
+
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      
+
       // Show progress for operations with multiple files
       if (files.length > 1) {
-        this.showInfo(`${operationName} ${file.name} (${i + 1}/${files.length})`);
+        this.showInfo(
+          `${operationName} ${file.name} (${i + 1}/${files.length})`
+        );
       }
-      
+
       const result = await operation(file, i);
       results.push(result);
     }
-    
+
     return results;
   }
 
@@ -83,5 +90,45 @@ export abstract class FileOperationCommand extends BaseCommand {
     if (!panel) {
       throw new Error(`Panel ${context.panelId} not found`);
     }
+  }
+
+  protected parseFileInput(
+    input: string,
+    currentPath: string
+  ): { targetDir: string; fileName: string } {
+    const trimmedInput = input.trim();
+
+    // Check if input is an absolute path
+    const isAbsolute =
+      trimmedInput.startsWith("/") || /^[A-Za-z]:\\/.test(trimmedInput);
+
+    let fullPath: string;
+    if (isAbsolute) {
+      fullPath = trimmedInput;
+    } else {
+      // Relative path - resolve against current panel path
+      fullPath = currentPath.endsWith("/")
+        ? currentPath + trimmedInput
+        : currentPath + "/" + trimmedInput;
+    }
+
+    // Normalize path separators
+    fullPath = fullPath.replace(/\\/g, "/");
+
+    // Split into directory and filename
+    const lastSlashIndex = fullPath.lastIndexOf("/");
+    if (lastSlashIndex === -1) {
+      return { targetDir: currentPath, fileName: fullPath };
+    }
+
+    const targetDir =
+      lastSlashIndex === 0 ? "/" : fullPath.substring(0, lastSlashIndex);
+    const fileName = fullPath.substring(lastSlashIndex + 1);
+
+    if (!fileName) {
+      throw new Error("Filename cannot be empty");
+    }
+
+    return { targetDir, fileName };
   }
 }

@@ -1,33 +1,47 @@
-import { BaseCommand } from '../../base/BaseCommand';
-import { CommandMetadata, ExecutionContext, ViewMode } from '../../types';
-import { CommandExecutor } from '../../../commandExecutor';
-import { DialogService } from '../../services/DialogService';
+import { BaseCommand } from "../../base/BaseCommand";
+import { CommandMetadata, ExecutionContext, ViewMode } from "../../types";
+import { DialogService } from "../../services/DialogService";
+import { setViewMode } from "@/store/slices/panelSlice";
+import { AppDispatch } from "@/store";
 
-export class SetViewModeCommand extends BaseCommand {
+export type SetViewModeCommandOptions = {
+  panelId: string;
+  viewMode: ViewMode;
+};
+
+export class SetViewModeCommand extends BaseCommand<SetViewModeCommandOptions> {
   constructor(
     private viewMode: ViewMode,
-    executor: CommandExecutor,
+    dispatch: AppDispatch,
     dialogService: DialogService
   ) {
     const metadata: CommandMetadata = {
       id: `set-view-${viewMode}`,
       label: `${viewMode.charAt(0).toUpperCase() + viewMode.slice(1)} View`,
-      category: 'View',
+      category: "View",
       description: `Switch to ${viewMode} view mode`,
-      icon: viewMode === 'list' ? 'list' : viewMode === 'grid' ? 'grid' : 'table',
-      shortcut: viewMode === 'list' ? 'Ctrl+1' : viewMode === 'grid' ? 'Ctrl+2' : 'Ctrl+3'
+      icon:
+        viewMode === "list" ? "list" : viewMode === "grid" ? "grid" : "table",
+      shortcut:
+        viewMode === "list"
+          ? "Ctrl+1"
+          : viewMode === "grid"
+            ? "Ctrl+2"
+            : "Ctrl+3",
     };
-    
-    super(metadata, executor, dialogService);
+
+    super(metadata, dispatch, dialogService);
   }
 
-  async execute(context: ExecutionContext): Promise<void> {
-    await this.withErrorHandling(
-      async () => {
-        CommandExecutor.changeViewMode(context.panelId, this.viewMode);
-        this.showSuccess(`Switched to ${this.viewMode} view`);
-      },
-      `Failed to set ${this.viewMode} view`
-    );
+  async execute(
+    context: ExecutionContext,
+    options: SetViewModeCommandOptions
+  ): Promise<void> {
+    await this.withErrorHandling(async () => {
+      this.dispatch(
+        setViewMode({ panelId: options.panelId, viewMode: options.viewMode })
+      );
+      this.showSuccess(`Switched to ${options.viewMode} view`);
+    }, `Failed to set ${options.viewMode} view`);
   }
 }

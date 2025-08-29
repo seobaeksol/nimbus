@@ -1,5 +1,6 @@
-import { AppDispatch } from '../../store';
-import { FileInfo } from '../../types';
+import { R } from "vitest/dist/chunks/environment.d.cL3nLXbE.js";
+import { AppDispatch } from "../../store";
+import { FileInfo } from "./ipc/file";
 
 /**
  * Execution context for commands - contains all necessary state
@@ -15,7 +16,7 @@ export interface ExecutionContext {
   clipboardState: {
     hasFiles: boolean;
     files: FileInfo[];
-    operation: 'copy' | 'cut' | null;
+    operation: "copy" | "cut" | null;
     sourcePanelId: string | null;
   };
 }
@@ -30,7 +31,7 @@ export interface Panel {
   selectedFiles: string[];
   viewMode: ViewMode;
   sortBy: SortBy;
-  sortOrder: 'asc' | 'desc';
+  sortOrder: "asc" | "desc";
   isLoading: boolean;
   error: string | null;
 }
@@ -50,10 +51,10 @@ export interface CommandMetadata {
 /**
  * Core command interface - encapsulates metadata and execution logic
  */
-export interface Command {
+export interface Command<T extends Record<string, any> = {}> {
   readonly metadata: CommandMetadata;
-  canExecute(context: ExecutionContext): boolean;
-  execute(context: ExecutionContext): Promise<void>;
+  canExecute(context: ExecutionContext, options?: T): boolean;
+  execute(context: ExecutionContext, options?: T): Promise<void>;
 }
 
 /**
@@ -68,7 +69,7 @@ export interface DialogService {
 /**
  * Notification types
  */
-export type NotificationType = 'success' | 'error' | 'warning' | 'info';
+export type NotificationType = "success" | "error" | "warning" | "info";
 
 /**
  * Grid layout configuration
@@ -82,9 +83,9 @@ export interface GridLayoutConfig {
 /**
  * View mode options
  */
-export type ViewMode = 'list' | 'grid' | 'details';
+export type ViewMode = "list" | "grid" | "details";
 
 /**
  * Sort options
  */
-export type SortBy = 'name' | 'size' | 'modified' | 'type';
+export type SortBy = "name" | "size" | "modified" | "type";

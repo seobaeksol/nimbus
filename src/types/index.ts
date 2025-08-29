@@ -1,36 +1,5 @@
-// Core types matching the Rust backend
+import { FileInfo } from "@/services/commands/ipc/file";
 
-export interface FileInfo {
-  name: string;
-  path: string;
-  size: number;
-  size_formatted: string;
-  modified: string; // ISO timestamp
-  created?: string;
-  accessed?: string;
-  file_type: "File" | "Directory" | "Symlink";
-  extension?: string;
-  permissions: FilePermissions;
-  is_hidden: boolean;
-  is_readonly: boolean;
-}
-
-export interface FilePermissions {
-  read: boolean;
-  write: boolean;
-  execute: boolean;
-}
-
-export interface SystemInfo {
-  platform: string;
-  arch: string;
-  hostname: string;
-  username: string;
-  home_dir?: string;
-  temp_dir: string;
-  app_name: string;
-  app_version: string;
-}
 
 // Panel and layout types from architecture
 export interface PanelState {
