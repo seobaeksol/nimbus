@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { FileInfo } from '../../types';
+import { FileInfo } from '../../services/commands/ipc/file';
 import './ContextMenu.css';
 
 export interface ContextMenuItem {

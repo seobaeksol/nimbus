@@ -6,3 +6,9 @@ export { RenameFileCommand } from './RenameFileCommand';
 export { CopyFilesCommand } from './CopyFilesCommand';
 export { CutFilesCommand } from './CutFilesCommand';
 export { PasteFilesCommand } from './PasteFilesCommand';
+export { 
+  StartDragCommand, 
+  EndDragCommand, 
+  UpdateDragOperationCommand, 
+  HandleDropCommand 
+} from './DragDropCommands';

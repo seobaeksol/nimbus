@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAppSelector, AppDispatch } from "../../store";
-import { Command, ExecutionContext } from "../../services/commands/types";
+import { Command } from "../../services/commands/types";
 import "./CommandPalette.css";
-import { CommandService } from "../../services/commands/services/CommandService";
 import { useCommands } from "@/hooks/useCommands";
 
 interface CommandPaletteProps {
@@ -14,7 +13,7 @@ interface CommandPaletteProps {
 const CommandPalette: React.FC<CommandPaletteProps> = ({
   isOpen,
   onClose,
-  dispatch: appDispatch,
+  dispatch: _appDispatch,
 }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -28,29 +27,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   const { clipboardState } = useAppSelector((state) => state.panels);
 
   const activePanel = activePanelId ? panels[activePanelId] : null;
-  const selectedFiles =
-    activePanel?.selectedFiles
-      .map((fileName) =>
-        activePanel.files.find((file) => file.name === fileName)
-      )
-      .filter(Boolean) || [];
   const { searchCommands, executeCommand } = useCommands();
-
-  // Create execution context
-  const executionContext: ExecutionContext = {
-    panelId: activePanelId || "",
-    currentPath: activePanel?.currentPath || "/",
-    selectedFiles: selectedFiles as any[], // Type assertion for now
-    dispatch: appDispatch,
-    clipboardHasFiles: clipboardState.hasFiles,
-    panels,
-    clipboardState: {
-      hasFiles: clipboardState.hasFiles,
-      files: clipboardState.files || [],
-      operation: clipboardState.operation || null,
-      sourcePanelId: clipboardState.sourcePanelId || null,
-    },
-  };
 
   // Filter commands based on search term
   useEffect(() => {
@@ -108,7 +85,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       case "Enter":
         e.preventDefault();
         if (filteredCommands[selectedIndex]) {
-          executeCommand(filteredCommands[selectedIndex].metadata.label);
+          executeCommand(filteredCommands[selectedIndex].metadata.id);
+          onClose();
         }
         break;
       case "Tab":
@@ -186,7 +164,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
               <div
                 key={command.metadata.id}
                 className={`command-palette-item ${index === selectedIndex ? "selected" : ""}`}
-                onClick={() => executeCommand(command)}
+                onClick={() => {
+                  executeCommand(command.metadata.id);
+                  onClose();
+                }}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
                 <div className="command-palette-item-content">

@@ -24,8 +24,8 @@ export const CommandProvider: React.FC<CommandProviderProps> = ({
     message: "",
     onConfirm: () => {},
   });
-  const { commands, executeCommand } = useCommands();
-  const { panels, activePanelId, gridLayout, panelOrder } = useAppSelector(
+  const { executeCommand } = useCommands();
+  const { panels, activePanelId } = useAppSelector(
     (state) => state.panels
   );
   const dispatch = useAppDispatch();
@@ -66,7 +66,7 @@ export const CommandProvider: React.FC<CommandProviderProps> = ({
           placeholder: "foldername or /path/to/folder or subdir/folder",
           onConfirm: (path: string) => {
             if (path) {
-              commands.createFolder(path);
+              executeCommand("create-folder", { navigateToTarget: true });
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           },
@@ -85,7 +85,7 @@ export const CommandProvider: React.FC<CommandProviderProps> = ({
           placeholder: "filename.txt or /path/to/file.txt or subdir/file.txt",
           onConfirm: (path: string) => {
             if (path) {
-              commands.createFile(path);
+              executeCommand("create-file", { navigateToTarget: true });
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           },

@@ -15,6 +15,10 @@ import {
   CopyFilesCommand,
   CutFilesCommand,
   PasteFilesCommand,
+  StartDragCommand,
+  EndDragCommand,
+  UpdateDragOperationCommand,
+  HandleDropCommand,
 } from "../implementations/file";
 
 import {
@@ -58,6 +62,11 @@ export class CommandFactory {
       new CutFilesCommand(this.dispatch, this.dialogService),
       new PasteFilesCommand(this.dispatch, this.dialogService),
       new LoadDirectoryCommand(this.dispatch, this.dialogService),
+      // Drag and drop commands
+      new StartDragCommand(this.dispatch, this.dialogService),
+      new EndDragCommand(this.dispatch, this.dialogService),
+      new UpdateDragOperationCommand(this.dispatch, this.dialogService),
+      new HandleDropCommand(this.dispatch, this.dialogService),
     ];
   }
 

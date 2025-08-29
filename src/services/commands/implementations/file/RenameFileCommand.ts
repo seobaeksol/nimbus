@@ -4,7 +4,11 @@ import { DialogService } from "../../services/DialogService";
 import { renameItem } from "../../ipc/file";
 import { AppDispatch } from "@/store";
 
-export class RenameFileCommand extends FileOperationCommand {
+export type RenameFileCommandOptions = {
+  newName?: string;
+};
+
+export class RenameFileCommand extends FileOperationCommand<RenameFileCommandOptions> {
   constructor(dispatch: AppDispatch, dialogService: DialogService) {
     const metadata: CommandMetadata = {
       id: "rename-file",
@@ -22,11 +26,11 @@ export class RenameFileCommand extends FileOperationCommand {
     return 1;
   }
 
-  canExecute(context: ExecutionContext): boolean {
-    return super.canExecute(context) && context.selectedFiles.length === 1;
+  canExecute(context: ExecutionContext, options?: RenameFileCommandOptions): boolean {
+    return super.canExecute(context, options) && context.selectedFiles.length === 1;
   }
 
-  async execute(context: ExecutionContext): Promise<void> {
+  async execute(context: ExecutionContext, options?: RenameFileCommandOptions): Promise<void> {
     await this.withErrorHandling(async () => {
       this.validatePanel(context);
 
@@ -37,7 +41,9 @@ export class RenameFileCommand extends FileOperationCommand {
       }
 
       const file = selectedFiles[0];
-      const newName = await this.dialogService.prompt(
+      
+      // Use provided newName or prompt for it
+      const newName = options?.newName || await this.dialogService.prompt(
         "Enter new name:",
         file.name
       );

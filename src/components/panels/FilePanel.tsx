@@ -78,7 +78,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
       // Handle Ctrl+V (paste) even without selection
       if ((event.ctrlKey || event.metaKey) && event.key === "v") {
         event.preventDefault();
-        executeCommand("paste-files", panel.id);
+        executeCommand("paste-files");
         return;
       }
 
@@ -96,7 +96,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           showConfirmDialog(
             "Confirm Delete",
             message,
-            () => executeCommand("delete-files", panel.id, selectedFileInfos),
+            () => executeCommand("delete-files"),
             "danger"
           );
           break;
@@ -111,12 +111,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
               defaultValue: selectedFileInfos[0].name,
               onConfirm: (newName: string) => {
                 if (newName && newName !== selectedFileInfos[0].name) {
-                  executeCommand(
-                    "rename-file",
-                    panel.id,
-                    selectedFileInfos[0],
-                    newName
-                  );
+                  executeCommand("rename-file", { newName });
                 }
                 setPromptDialog({ ...promptDialog, isOpen: false });
               },
@@ -127,14 +122,14 @@ const FilePanel: React.FC<FilePanelProps> = ({
         case "c":
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            executeCommand("copy-files", panel.id, selectedFileInfos);
+            executeCommand("copy-files");
           }
           break;
 
         case "x":
           if (event.ctrlKey || event.metaKey) {
             event.preventDefault();
-            executeCommand("cut-files", panel.id, selectedFileInfos);
+            executeCommand("cut-files");
           }
           break;
       }
@@ -242,11 +237,11 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   // Drag and Drop handlers
   const handleDragStart = (e: React.DragEvent, file: FileInfo) => {
-    CommandExecutor.startDrag(panel.id, file, e.ctrlKey, e);
+    executeCommand("start-drag", { file, isCopy: e.ctrlKey, dragEvent: e });
   };
 
   const handleDragEnd = () => {
-    CommandExecutor.endDrag();
+    executeCommand("end-drag");
     setIsDragOver(false);
     setDragOverCounter(0);
   };
@@ -257,7 +252,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
     // Update drag operation based on modifier keys
     if (dragState.isDragging && dragState.sourcePanelId !== panel.id) {
-      CommandExecutor.updateDragOperation(e.ctrlKey);
+      executeCommand("update-drag-operation", { isCopy: e.ctrlKey });
     }
   };
 
@@ -288,7 +283,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
       return;
     }
 
-    await CommandExecutor.handleDrop(panel.id, dragState);
+    await executeCommand("handle-drop", { dragState });
   };
 
   const getContextMenuItems = (
@@ -314,11 +309,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
               defaultValue: selectedFiles[0].name,
               onConfirm: (newName: string) => {
                 if (newName && newName !== selectedFiles[0].name) {
-                  CommandExecutor.renameFile(
-                    panel.id,
-                    selectedFiles[0],
-                    newName
-                  );
+                  executeCommand("rename-file", { newName });
                 }
                 setPromptDialog({ ...promptDialog, isOpen: false });
               },
@@ -336,7 +327,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
         icon: "📋",
         shortcut: "Ctrl+C",
         onClick: () => {
-          CommandExecutor.copyFiles(panel.id, selectedFiles);
+          executeCommand("copy-files");
         },
       });
 
@@ -346,7 +337,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
         icon: "✂️",
         shortcut: "Ctrl+X",
         onClick: () => {
-          CommandExecutor.cutFiles(panel.id, selectedFiles);
+          executeCommand("cut-files");
         },
       });
 
@@ -369,7 +360,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           showConfirmDialog(
             "Confirm Delete",
             message,
-            () => CommandExecutor.deleteFiles(panel.id, selectedFiles),
+            () => executeCommand("delete-files"),
             "danger"
           );
         },
@@ -389,7 +380,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           clipboardState.operation === "cut" &&
           clipboardState.sourcePanelId === panel.id,
         onClick: () => {
-          CommandExecutor.pasteFiles(panel.id);
+          executeCommand("paste-files");
         },
       });
 
@@ -409,7 +400,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           placeholder: "filename.txt",
           onConfirm: (name: string) => {
             if (name) {
-              CommandExecutor.createFile(panel.id, name);
+              executeCommand("create-file", { navigateToTarget: false });
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           },
@@ -429,7 +420,7 @@ const FilePanel: React.FC<FilePanelProps> = ({
           placeholder: "New Folder",
           onConfirm: (name: string) => {
             if (name) {
-              CommandExecutor.createFolder(panel.id, name);
+              executeCommand("create-folder", { navigateToTarget: false });
             }
             setPromptDialog({ ...promptDialog, isOpen: false });
           },
