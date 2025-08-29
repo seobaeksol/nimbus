@@ -11,7 +11,7 @@ export class GoToDocumentsCommand extends NavigationCommand {
       label: "Go to Documents",
       category: "Navigation",
       description: "Navigate to the Documents folder",
-      icon: "folder",
+      icon: "󰂛", // nf-md-file_document
       shortcut: "Alt+D",
     };
     super(metadata, dispatch, dialogService);

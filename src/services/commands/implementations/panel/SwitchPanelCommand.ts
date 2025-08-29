@@ -22,7 +22,7 @@ export class SwitchPanelCommand extends BaseCommand<SwitchPanelCommandOptions> {
       label: `Switch to Panel ${panelNumber}`,
       category: "Panel",
       description: `Switch focus to panel ${panelNumber}`,
-      icon: "layout-panel",
+      icon: "󰍯", // nf-md-tab
       shortcut: `Ctrl+${panelNumber}`,
     };
 

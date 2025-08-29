@@ -17,7 +17,7 @@ export class DeleteFilesCommand extends FileOperationCommand {
       label: "Delete",
       category: "File",
       description: "Delete selected files and folders",
-      icon: "trash",
+      icon: "󰆩", // nf-md-delete
       shortcut: "Delete",
     };
 

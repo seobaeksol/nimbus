@@ -11,7 +11,7 @@ export class FocusAddressBarCommand extends NavigationCommand {
       label: "Focus Address Bar",
       category: "Navigation",
       description: "Focus the address bar for direct path input",
-      icon: "navigation",
+      icon: "󰇚", // nf-md-keyboard
       shortcut: "Ctrl+L",
     };
 

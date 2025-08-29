@@ -10,7 +10,7 @@ export class PasteFilesCommand extends FileOperationCommand {
       label: "Paste",
       category: "File",
       description: "Paste files from clipboard",
-      icon: "clipboard",
+      icon: "󰆐", // nf-md-content_paste
       shortcut: "Ctrl+V",
     };
 

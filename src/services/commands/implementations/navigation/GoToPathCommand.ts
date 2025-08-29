@@ -10,7 +10,7 @@ export class GoToPathCommand extends NavigationCommand {
       label: "Go to Path",
       category: "Navigation",
       description: "Navigate to a specific path",
-      icon: "navigation",
+      icon: "󰗍", // nf-md-map_marker
       shortcut: "Ctrl+G",
     };
     super(metadata, dispatch, dialogService);

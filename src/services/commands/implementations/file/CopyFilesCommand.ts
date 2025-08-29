@@ -15,7 +15,7 @@ export class CopyFilesCommand extends FileOperationCommand<CopyFilesCommandOptio
       label: "Copy",
       category: "File",
       description: "Copy selected files to clipboard",
-      icon: "copy",
+      icon: "󰆏", // nf-md-content_copy
       shortcut: "Ctrl+C",
     };
 

@@ -17,7 +17,7 @@ export class LoadDirectoryCommand extends FileOperationCommand<LoadDirectoryComm
       label: "Load Directory",
       category: "File",
       description: "Load a directory and its contents",
-      icon: "folder",
+      icon: "󰆭", // nf-md-folder_open
       shortcut: "Ctrl+R",
     };
 

@@ -11,7 +11,7 @@ export class GoToDesktopCommand extends NavigationCommand {
       label: "Go to Desktop",
       category: "Navigation",
       description: "Navigate to the Desktop folder",
-      icon: "monitor",
+      icon: "󰈷", // nf-md-monitor
       shortcut: "Alt+Shift+D",
     };
 

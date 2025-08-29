@@ -11,7 +11,7 @@ export class GoToApplicationsCommand extends NavigationCommand {
       label: "Go to Applications",
       category: "Navigation",
       description: "Navigate to the Applications folder",
-      icon: "app-window",
+      icon: "󰀋", // nf-md-application
       shortcut: "Alt+A",
     };
     super(metadata, dispatch, dialogService);

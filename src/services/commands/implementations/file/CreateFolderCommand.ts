@@ -17,7 +17,7 @@ export class CreateFolderCommand extends FileOperationCommand<CreateFolderComman
       label: "New Folder",
       category: "File",
       description: "Create a new folder in the current directory",
-      icon: "folder-plus",
+      icon: "󰆺", // nf-md-folder_plus
       shortcut: "Ctrl+Shift+N",
     };
 

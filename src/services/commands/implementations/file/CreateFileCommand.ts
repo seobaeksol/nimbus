@@ -16,7 +16,7 @@ export class CreateFileCommand extends FileOperationCommand<CreateFileCommandOpt
       label: "New File",
       category: "File",
       description: "Create a new file in the current directory",
-      icon: "file-plus",
+      icon: "󰂰", // nf-md-file_plus
       shortcut: "Ctrl+N",
     };
 

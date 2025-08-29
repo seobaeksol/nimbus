@@ -15,7 +15,7 @@ export class RenameFileCommand extends FileOperationCommand<RenameFileCommandOpt
       label: "Rename",
       category: "File",
       description: "Rename the selected file or folder",
-      icon: "edit",
+      icon: "󰌈", // nf-md-rename
       shortcut: "F2",
     };
 

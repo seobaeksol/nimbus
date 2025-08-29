@@ -11,7 +11,7 @@ export class GoToDownloadsCommand extends NavigationCommand {
       label: "Go to Downloads",
       category: "Navigation",
       description: "Navigate to the Downloads folder",
-      icon: "download",
+      icon: "󰆢", // nf-md-download
       shortcut: "Alt+Shift+L",
     };
     super(metadata, dispatch, dialogService);

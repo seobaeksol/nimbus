@@ -19,7 +19,7 @@ export class SetGridLayoutCommand extends BaseCommand {
       label: layout.name,
       category: "Panel",
       description: `Switch to ${layout.name} layout`,
-      icon: "layout-grid",
+      icon: "󰈧", // nf-md-grid
       shortcut:
         layout.rows === 1 && layout.cols === 1
           ? "Alt+1"

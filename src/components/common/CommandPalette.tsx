@@ -116,16 +116,18 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   };
 
   const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "File":
+    switch (category.toLowerCase()) {
+      case "file":
+        return "📄";
+      case "folder":
         return "📁";
-      case "Navigation":
+      case "navigation":
         return "🧭";
-      case "Panel":
+      case "panel":
         return "🗂️";
-      case "View":
+      case "view":
         return "👁️";
-      case "System":
+      case "system":
         return "⚙️";
       default:
         return "🔧";

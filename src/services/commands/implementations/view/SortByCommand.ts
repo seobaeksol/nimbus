@@ -20,7 +20,14 @@ export class SortByCommand extends BaseCommand<SortByCommandOptions> {
       label: `Sort by ${sortBy.charAt(0).toUpperCase() + sortBy.slice(1)}`,
       category: "View",
       description: `Sort files by ${sortBy}`,
-      icon: "arrow-up-down",
+      icon:
+        sortBy === "name"
+          ? "nf-fa-font" // Nerd Font Font icon for name
+          : sortBy === "size"
+            ? "nf-oct-file_binary" // Nerd Font binary/file icon for size
+            : sortBy === "modified"
+              ? "nf-fa-calendar" // Nerd Font calendar icon for modified
+              : "nf-oct-file_code", // Nerd Font code/file icon for type
       shortcut:
         sortBy === "name"
           ? "Ctrl+Shift+1"
@@ -38,11 +45,17 @@ export class SortByCommand extends BaseCommand<SortByCommandOptions> {
     _context: ExecutionContext,
     options: SortByCommandOptions
   ): Promise<void> {
-    await this.withErrorHandling(async () => {
-      this.dispatch(
-        setSorting({ panelId: options.panelId, sortBy: options.sortBy || this.sortBy })
-      );
-      this.showSuccess(`Sorted by ${options.sortBy || this.sortBy}`);
-    }, `Failed to sort by ${options.sortBy || this.sortBy}`);
+    await this.withErrorHandling(
+      async () => {
+        this.dispatch(
+          setSorting({
+            panelId: options.panelId,
+            sortBy: options.sortBy || this.sortBy,
+          })
+        );
+        this.showSuccess(`Sorted by ${options.sortBy || this.sortBy}`);
+      },
+      `Failed to sort by ${options.sortBy || this.sortBy}`
+    );
   }
 }

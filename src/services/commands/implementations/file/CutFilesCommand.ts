@@ -13,7 +13,7 @@ export class CutFilesCommand extends FileOperationCommand<CutFilesCommandOptions
       label: "Cut",
       category: "File",
       description: "Cut selected files to clipboard",
-      icon: "scissors",
+      icon: "󰃄", // nf-md-content_cut
       shortcut: "Ctrl+X",
     };
 

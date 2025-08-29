@@ -21,7 +21,7 @@ export class SetViewModeCommand extends BaseCommand<SetViewModeCommandOptions> {
       category: "View",
       description: `Switch to ${viewMode} view mode`,
       icon:
-        viewMode === "list" ? "list" : viewMode === "grid" ? "grid" : "table",
+        viewMode === "list" ? "󰉖" : viewMode === "grid" ? "󰈧" : "�", // nf-md-view_list, nf-md-grid, nf-md-table
       shortcut:
         viewMode === "list"
           ? "Ctrl+1"

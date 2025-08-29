@@ -1,5 +1,136 @@
+/* JetBrains Mono Nerd Font - Regular variants */
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Thin.ttf") format("truetype");
+  font-weight: 100;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-ThinItalic.ttf") format("truetype");
+  font-weight: 100;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-ExtraLight.ttf") format("truetype");
+  font-weight: 200;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-ExtraLightItalic.ttf") format("truetype");
+  font-weight: 200;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Light.ttf") format("truetype");
+  font-weight: 300;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-LightItalic.ttf") format("truetype");
+  font-weight: 300;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-MediumItalic.ttf") format("truetype");
+  font-weight: 500;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-SemiBoldItalic.ttf") format("truetype");
+  font-weight: 600;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-BoldItalic.ttf") format("truetype");
+  font-weight: 700;
+  font-style: italic;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-variant: normal;
+}
+
+@font-face {
+  font-family: "JetBrains Mono Nerd Font";
+  src: url("./assets/fonts/JetBrainsMonoNerdFont-ExtraBoldItalic.ttf") format("truetype");
+  font-weight: 800;
+  font-style: italic;
+  font-variant: normal;
+}
+
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', 'Avenir', 'Helvetica', 'Arial', sans-serif;
+  font-family: "JetBrains Mono Nerd Font",
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Inter", "Avenir",
+    "Helvetica", "Arial", sans-serif;
   font-size: 14px;
   line-height: 1.4;
   font-weight: 400;
@@ -24,7 +155,12 @@ body {
 }
 
 /* Remove default styles that interfere with file manager */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   padding: 0;
 }

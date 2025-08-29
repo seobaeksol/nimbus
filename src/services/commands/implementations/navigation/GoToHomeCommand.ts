@@ -11,7 +11,7 @@ export class GoToHomeCommand extends NavigationCommand {
       label: "Go to Home",
       category: "Navigation",
       description: "Navigate to the home directory",
-      icon: "home",
+      icon: "󰏵", // nf-md-home
       shortcut: "Alt+Home",
     };
     super(metadata, dispatch, dialogService);
