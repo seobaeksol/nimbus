@@ -63,8 +63,11 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   useEffect(() => {
     console.warn("Loading directory:", panel.currentPath);
-    executeCommand("load-directory", { path: panel.currentPath });
-  }, []);
+    executeCommand("load-directory", {
+      panelId: panel.id,
+      path: panel.currentPath,
+    });
+  }, [panel.currentPath]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -172,7 +175,10 @@ const FilePanel: React.FC<FilePanelProps> = ({
 
   const handleFileDoubleClick = (file: FileInfo) => {
     if (file.file_type === "Directory") {
-      executeCommand("load-directory", { path: file.path });
+      executeCommand("load-directory", {
+        panelId: panel.id,
+        path: file.path,
+      });
     }
   };
 
@@ -180,12 +186,18 @@ const FilePanel: React.FC<FilePanelProps> = ({
     // TODO: Utility function for getting parent directory
     let parentPath = panel.currentPath.split("/").slice(0, -1).join("/") || "/";
     if (!parentPath.includes("/")) parentPath = "/";
-    executeCommand("load-directory", { path: parentPath });
+    executeCommand("load-directory", {
+      panelId: panel.id,
+      path: parentPath,
+    });
   };
 
   const handleAddressBarNavigate = async (inputPath: string) => {
     try {
-      executeCommand("load-directory", { path: inputPath });
+      executeCommand("load-directory", {
+        panelId: panel.id,
+        path: inputPath,
+      });
     } catch (error) {
       // Let the error bubble up to the AddressBar component for display
       throw error;

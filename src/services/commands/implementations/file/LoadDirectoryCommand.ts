@@ -1,14 +1,12 @@
 import { FileOperationCommand } from "../../base/FileOperationCommand";
 import { CommandMetadata, ExecutionContext } from "../../types";
 import { DialogService } from "../../services/DialogService";
-import {
-  navigateToPath,
-  setFiles,
-} from "@/store/slices/panelSlice";
+import { navigateToPath, setFiles } from "@/store/slices/panelSlice";
 import { AppDispatch } from "@/store";
-import { listDirectory } from "../../ipc/file";
+import { listDirectory, resolvePath } from "../../ipc/file";
 
 export type LoadDirectoryCommandOptions = {
+  panelId: string;
   path?: string;
 };
 
@@ -40,12 +38,14 @@ export class LoadDirectoryCommand extends FileOperationCommand<LoadDirectoryComm
   ): Promise<void> {
     await this.withErrorHandling(async () => {
       this.validatePanel(context);
-      const { panelId } = context;
-      const path = _options?.path || context.currentPath;
+      if (!_options?.panelId) throw new Error("Panel ID is required");
+
+      let path = _options?.path || context.currentPath;
+      path = await resolvePath(path);
 
       const files = await listDirectory(path);
-      this.dispatch(navigateToPath({ panelId, path }));
-      this.dispatch(setFiles({ panelId, files }));
+      this.dispatch(navigateToPath({ panelId: _options.panelId, path }));
+      this.dispatch(setFiles({ panelId: _options.panelId, files }));
     }, "Failed to load directory");
   }
 }
