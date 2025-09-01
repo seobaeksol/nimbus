@@ -128,6 +128,8 @@ public
 # Rust/Cargo
 # Compiled files
 src-tauri/target/
+src-tauri/crates/*/target/
+src-tauri/crates/*/Cargo.lock
 
 # Lock files (keep Cargo.lock for applications, ignore for libraries)
 # src-tauri/Cargo.lock (keep for applications)
