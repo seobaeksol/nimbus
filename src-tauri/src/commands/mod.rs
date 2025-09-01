@@ -3,9 +3,11 @@
 //! This module contains all the command handlers that provide
 //! the bridge between the React frontend and Rust backend.
 
+pub mod archives;
 pub mod files;
 pub mod search;
 pub mod system;
+pub mod watcher;
 #[cfg(test)]
 mod tests;
 

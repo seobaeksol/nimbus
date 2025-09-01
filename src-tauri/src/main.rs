@@ -5,11 +5,14 @@ use tauri::Manager;
 
 mod commands;
 
-use commands::{files, search, system};
+use commands::{archives, files, search, system, watcher};
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .manage(archives::OperationState::default())
+        .manage(files::FileSystemState::with_performance())
+        .manage(watcher::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             // File system commands
             files::list_dir,
@@ -22,6 +25,12 @@ fn main() {
             files::rename_item,
             files::get_system_paths,
             files::resolve_path,
+            // Archive commands
+            archives::list_archive_contents,
+            archives::extract_archive,
+            archives::cancel_extraction,
+            archives::extract_entry_to_memory,
+            archives::get_archive_info,
             // Search commands
             search::start_search,
             search::cancel_search,
@@ -29,6 +38,14 @@ fn main() {
             // System commands  
             system::get_system_info,
             system::greet,
+            // File watcher commands
+            watcher::start_directory_watch,
+            watcher::stop_directory_watch,
+            watcher::list_directory_watches,
+            // Performance monitoring commands
+            watcher::get_performance_stats,
+            watcher::get_cache_hit_ratio,
+            watcher::invalidate_directory_cache,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

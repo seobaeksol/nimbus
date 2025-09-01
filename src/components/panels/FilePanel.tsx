@@ -7,8 +7,11 @@ import ConfirmDialog from "../common/ConfirmDialog";
 import PromptDialog from "../common/PromptDialog";
 import AddressBar from "../common/AddressBar";
 import NotificationContainer from "../common/NotificationContainer";
+import FileIcon from "../common/FileIcon";
+import ArchiveBrowser from "../common/ArchiveBrowser";
 import "./FilePanel.css";
 import { FileInfo } from "@/services/commands/ipc/file";
+import { formatFileSize, formatFileDate, isArchiveFile } from "../../utils/fileIcons";
 
 interface FilePanelProps {
   panel: Panel;
@@ -60,6 +63,13 @@ const FilePanel: React.FC<FilePanelProps> = ({
   });
   const [isDragOver, setIsDragOver] = useState(false);
   const [dragOverCounter, setDragOverCounter] = useState(0);
+  const [archiveBrowser, setArchiveBrowser] = useState<{
+    isOpen: boolean;
+    archivePath: string;
+  }>({
+    isOpen: false,
+    archivePath: "",
+  });
 
   useEffect(() => {
     console.warn("Loading directory:", panel.currentPath);
@@ -179,6 +189,54 @@ const FilePanel: React.FC<FilePanelProps> = ({
         panelId: panel.id,
         path: file.path,
       });
+    } else if (isArchiveFile(file.name)) {
+      // Open archive browser for supported archive formats
+      setArchiveBrowser({
+        isOpen: true,
+        archivePath: file.path,
+      });
+    }
+  };
+
+  const handleArchiveClose = () => {
+    setArchiveBrowser({
+      isOpen: false,
+      archivePath: "",
+    });
+  };
+
+  const handleArchiveExtract = async (entries: string[], _destination: string) => {
+    // TODO: Implement extraction UI - for now, use current panel directory
+    const extractPath = panel.currentPath;
+    
+    try {
+      await executeCommand("extract-archive", {
+        archivePath: archiveBrowser.archivePath,
+        destination: extractPath,
+        options: {
+          preserve_paths: true,
+          overwrite_policy: "ask",
+          entries: entries.length > 0 ? entries : undefined,
+        }
+      });
+    } catch (error) {
+      console.error("Failed to extract archive:", error);
+    }
+  };
+
+  const handleArchivePreview = async (entryPath: string) => {
+    try {
+      // Extract entry to memory for preview
+      const data = await executeCommand("extract-entry-to-memory", {
+        archivePath: archiveBrowser.archivePath,
+        entryPath,
+        maxSize: 1024 * 1024, // 1MB limit
+      });
+      
+      // TODO: Show preview dialog with extracted data
+      console.log("Preview data:", data);
+    } catch (error) {
+      console.error("Failed to preview archive entry:", error);
     }
   };
 
@@ -443,22 +501,6 @@ const FilePanel: React.FC<FilePanelProps> = ({
     return items;
   };
 
-  const formatFileSize = (size: number): string => {
-    const units = ["B", "KB", "MB", "GB"];
-    let unitIndex = 0;
-    let fileSize = size;
-
-    while (fileSize >= 1024 && unitIndex < units.length - 1) {
-      fileSize /= 1024;
-      unitIndex++;
-    }
-
-    return `${fileSize.toFixed(1)} ${units[unitIndex]}`;
-  };
-
-  const formatDate = (isoString: string): string => {
-    return new Date(isoString).toLocaleDateString();
-  };
 
   const isFileCut = (file: FileInfo): boolean => {
     return (
@@ -593,14 +635,16 @@ const FilePanel: React.FC<FilePanelProps> = ({
             onDragStart={(e) => handleDragStart(e, file)}
             onDragEnd={handleDragEnd}
           >
-            <span className="file-icon">
-              {file.file_type === "Directory" ? "📁" : "📄"}
-            </span>
+            <FileIcon 
+              fileName={file.name} 
+              fileType={file.file_type} 
+              size="medium"
+            />
             <span className="file-name">{file.name}</span>
             <span className="file-size">
               {file.file_type === "Directory" ? "" : formatFileSize(file.size)}
             </span>
-            <span className="file-date">{formatDate(file.modified)}</span>
+            <span className="file-date">{formatFileDate(file.modified)}</span>
           </div>
         ))}
       </div>
@@ -636,6 +680,17 @@ const FilePanel: React.FC<FilePanelProps> = ({
         onConfirm={promptDialog.onConfirm}
         onCancel={() => setPromptDialog({ ...promptDialog, isOpen: false })}
       />
+
+      {archiveBrowser.isOpen && (
+        <div className="archive-browser-overlay">
+          <ArchiveBrowser
+            archivePath={archiveBrowser.archivePath}
+            onClose={handleArchiveClose}
+            onExtract={handleArchiveExtract}
+            onPreview={handleArchivePreview}
+          />
+        </div>
+      )}
     </div>
   );
 };

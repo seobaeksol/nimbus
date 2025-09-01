@@ -9,10 +9,14 @@ use std::time::SystemTime;
 use thiserror::Error;
 
 pub mod local_fs;
+pub mod watcher;
+pub mod performance;
 #[cfg(test)]
 mod tests;
 
 pub use local_fs::LocalFileSystem;
+pub use watcher::{FileWatcher, FileChangeEvent, FileChangeType, WatchConfig, WatcherError, create_directory_watcher};
+pub use performance::{PerformanceOptimizer, PerformanceConfig, PerformanceStats, ChunkedDirectoryReader};
 
 /// File system error types
 #[derive(Error, Debug)]

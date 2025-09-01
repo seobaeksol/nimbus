@@ -193,6 +193,29 @@
 
 .drag-ghost {
   background-color: #0078d4;
+}
+
+/* Archive Browser Overlay */
+.archive-browser-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.archive-browser-overlay > * {
+  max-width: 90vw;
+  max-height: 90vh;
+  min-width: 600px;
+  min-height: 400px;
+}
   color: white;
   padding: 4px 8px;
   border-radius: 4px;

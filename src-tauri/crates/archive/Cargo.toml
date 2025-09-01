@@ -4,5 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Will be implemented later
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.42", features = ["full"] }
+zip = { version = "2.1", features = ["deflate", "bzip2"] }
+thiserror = "2.0"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+time = "0.3"
+
+[dev-dependencies]
+tempfile = "3.14"

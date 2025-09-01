@@ -46,6 +46,7 @@ anyhow = "1.0"
 hostname = "0.4"
 whoami = "1.5"
 dirs = "5.0"
+chrono = { version = "0.4", features = ["serde"] }
 
 # Local crates
 core-engine = { path = "crates/core-engine" }

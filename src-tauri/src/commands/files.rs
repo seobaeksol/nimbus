@@ -2,14 +2,34 @@
 
 use core_engine::{FileInfo, FileSystem, LocalFileSystem};
 use std::path::Path;
-use tauri::command;
+use std::sync::Arc;
+use tauri::{command, State};
+use tokio::sync::RwLock;
 
 use super::CommandResult;
 
+/// Shared file system state across the application
+#[derive(Default)]
+pub struct FileSystemState {
+    pub filesystem: Arc<RwLock<LocalFileSystem>>,
+}
+
+impl FileSystemState {
+    /// Create a new FileSystemState with performance optimization enabled
+    pub fn with_performance() -> Self {
+        Self {
+            filesystem: Arc::new(RwLock::new(LocalFileSystem::with_default_performance())),
+        }
+    }
+}
+
 /// List the contents of a directory
 #[command]
-pub async fn list_dir(path: String) -> CommandResult<Vec<FileInfo>> {
-    let fs = LocalFileSystem::new();
+pub async fn list_dir(
+    path: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<Vec<FileInfo>> {
+    let fs = filesystem_state.filesystem.read().await;
     let path = Path::new(&path);
     
     match fs.list_dir(path).await {
@@ -20,8 +40,11 @@ pub async fn list_dir(path: String) -> CommandResult<Vec<FileInfo>> {
 
 /// Get detailed information about a file or directory
 #[command]
-pub async fn get_file_info(path: String) -> CommandResult<FileInfo> {
-    let fs = LocalFileSystem::new();
+pub async fn get_file_info(
+    path: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<FileInfo> {
+    let fs = filesystem_state.filesystem.read().await;
     let path = Path::new(&path);
     
     match fs.get_file_info(path).await {
@@ -32,8 +55,12 @@ pub async fn get_file_info(path: String) -> CommandResult<FileInfo> {
 
 /// Create a new directory
 #[command]
-pub async fn create_directory(path: String, name: String) -> CommandResult<()> {
-    let fs = LocalFileSystem::new();
+pub async fn create_directory(
+    path: String,
+    name: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
+    let fs = filesystem_state.filesystem.read().await;
     let full_path = Path::new(&path).join(&name);
     
     match fs.create_dir(&full_path).await {
@@ -44,8 +71,12 @@ pub async fn create_directory(path: String, name: String) -> CommandResult<()> {
 
 /// Copy a file or directory
 #[command]
-pub async fn copy_item(src_path: String, dst_path: String) -> CommandResult<()> {
-    let fs = LocalFileSystem::new();
+pub async fn copy_item(
+    src_path: String,
+    dst_path: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
+    let fs = filesystem_state.filesystem.read().await;
     let src = Path::new(&src_path);
     let dst = Path::new(&dst_path);
     
@@ -110,8 +141,12 @@ pub async fn copy_item(src_path: String, dst_path: String) -> CommandResult<()> 
 
 /// Move/rename a file or directory
 #[command]
-pub async fn move_item(src_path: String, dst_path: String) -> CommandResult<()> {
-    let fs = LocalFileSystem::new();
+pub async fn move_item(
+    src_path: String,
+    dst_path: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
+    let fs = filesystem_state.filesystem.read().await;
     let src = Path::new(&src_path);
     let dst = Path::new(&dst_path);
     
@@ -161,8 +196,11 @@ pub async fn move_item(src_path: String, dst_path: String) -> CommandResult<()> 
 
 /// Delete a file or directory
 #[command]
-pub async fn delete_item(path: String) -> CommandResult<()> {
-    let fs = LocalFileSystem::new();
+pub async fn delete_item(
+    path: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
+    let fs = filesystem_state.filesystem.read().await;
     let item_path = Path::new(&path);
     
     // Check if the item exists and get its info
@@ -215,12 +253,16 @@ pub async fn delete_item(path: String) -> CommandResult<()> {
 
 /// Rename a file or directory
 #[command]
-pub async fn rename_item(old_path: String, new_name: String) -> CommandResult<()> {
+pub async fn rename_item(
+    old_path: String,
+    new_name: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
     let old = Path::new(&old_path);
     let parent = old.parent().ok_or("Invalid path: no parent directory")?;
     let new_path = parent.join(&new_name);
     
-    let fs = LocalFileSystem::new();
+    let fs = filesystem_state.filesystem.read().await;
     match fs.move_file(old, &new_path).await {
         Ok(()) => Ok(()),
         Err(e) => Err(format!("Failed to rename item: {}", e)),
@@ -229,8 +271,12 @@ pub async fn rename_item(old_path: String, new_name: String) -> CommandResult<()
 
 /// Create a new file
 #[command]
-pub async fn create_file(path: String, name: String) -> CommandResult<()> {
-    let fs = LocalFileSystem::new();
+pub async fn create_file(
+    path: String,
+    name: String,
+    filesystem_state: State<'_, FileSystemState>,
+) -> CommandResult<()> {
+    let fs = filesystem_state.filesystem.read().await;
     let full_path = Path::new(&path).join(&name);
     
     match fs.write_file(&full_path, &[]).await {
