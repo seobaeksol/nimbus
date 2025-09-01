@@ -24,6 +24,8 @@ suppaftp = "5.3"
 
 # HTTP/WebDAV support
 reqwest = { version = "0.11", features = ["json"] }
+base64 = "0.21"
+xml = "0.8"
 
 # URL parsing
 url = "2.5"

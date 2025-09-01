@@ -389,9 +389,9 @@ pub mod utils {
 
         Ok(RemoteConfig {
             protocol,
-            host,
+            host: host.clone(),
             port,
-            username,
+            username: username.clone(),
             password,
             private_key_path: None,
             private_key_passphrase: None,
