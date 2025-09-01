@@ -7,6 +7,7 @@ pub mod archives;
 pub mod files;
 pub mod search;
 pub mod system;
+pub mod viewers;
 pub mod watcher;
 #[cfg(test)]
 mod tests;

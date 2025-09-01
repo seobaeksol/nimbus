@@ -4,5 +4,37 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Will be implemented later
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
 serde = { version = "1.0", features = ["derive"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# SFTP/SSH support
+ssh2 = "0.9"
+openssh-sftp-client = "0.14"
+
+# FTP support
+suppaftp = "5.3"
+
+# HTTP/WebDAV support
+reqwest = { version = "0.11", features = ["json"] }
+
+# URL parsing
+url = "2.5"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Credential storage
+keyring = "2.0"
+
+# Testing
+[dev-dependencies]
+tempfile = "3.14"
+tokio-test = "0.4"

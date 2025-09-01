@@ -1,0 +1,47 @@
+[package]
+name = "nimbus-file-viewers"
+version = "0.1.0"
+edition = "2021"
+description = "Built-in file viewers for text, images, and binary files"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Text file handling
+encoding_rs = "0.8"  # Encoding detection and conversion
+mime = "0.3"         # MIME type detection
+
+# Image handling
+image = { version = "0.24", features = ["jpeg", "png", "gif", "webp", "bmp", "tiff"] }
+# kamadak-exif = "0.5"     # EXIF data extraction (disabled for now)
+
+# Text processing
+regex = "1.10"           # Regular expression support for text search
+
+# File system utilities
+memmap2 = "0.9"      # Memory-mapped file I/O for large files
+walkdir = "2.5"      # Directory traversal for batch operations
+
+# Configuration
+dirs = "5.0"         # User directories
+chrono = { version = "0.4", features = ["serde"] }  # Date/time handling
+
+[dev-dependencies]
+tempfile = "3.14"
+tokio-test = "0.4"
+
+[features]
+default = ["image-viewers", "text-viewers", "hex-viewers"]
+image-viewers = []
+text-viewers = []  
+hex-viewers = []

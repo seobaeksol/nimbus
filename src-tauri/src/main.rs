@@ -5,7 +5,7 @@ use tauri::Manager;
 
 mod commands;
 
-use commands::{archives, files, search, system, watcher};
+use commands::{archives, files, search, system, watcher, viewers};
 
 fn main() {
     tauri::Builder::default()
@@ -46,6 +46,15 @@ fn main() {
             watcher::get_performance_stats,
             watcher::get_cache_hit_ratio,
             watcher::invalidate_directory_cache,
+            // File viewer commands
+            viewers::get_viewer_capabilities,
+            viewers::find_viewer_for_file,
+            viewers::view_file,
+            viewers::search_in_file,
+            viewers::read_binary_chunk,
+            viewers::get_viewer_stats,
+            viewers::format_file_size,
+            viewers::detect_mime_type,
         ])
         .setup(|app| {
             #[cfg(debug_assertions)]

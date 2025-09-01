@@ -7,6 +7,7 @@
 
 // Re-export core types
 pub use core_engine::{FileInfo, FileSystem, FileError};
+pub use nimbus_file_viewers::{FileViewer, ViewerContent, ViewerFactory};
 
 /// Application state shared across Tauri commands
 #[derive(Default)]

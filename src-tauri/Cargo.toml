@@ -54,6 +54,7 @@ nimbus-archive = { path = "crates/archive" }
 nimbus-remote-fs = { path = "crates/remote-fs" }
 nimbus-search = { path = "crates/search-engine" }
 nimbus-plugin-sdk = { path = "crates/plugin-sdk" }
+nimbus-file-viewers = { path = "crates/file-viewers" }
 
 [dev-dependencies]
 tempfile = "3.14"
