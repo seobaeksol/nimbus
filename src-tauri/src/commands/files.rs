@@ -94,9 +94,13 @@ pub async fn copy_item(src_path: String, dst_path: String) -> CommandResult<()> 
             }
         },
         core_engine::FileType::Directory => {
-            // TODO: Fix copy_dir_recursive method resolution issue
-            // Temporary workaround: return error for directory copying
-            Err(format!("Directory copying not yet implemented: '{}'", src.display()))
+            match fs.copy_dir_recursive(src, dst).await {
+                Ok(()) => Ok(()),
+                Err(core_engine::FileError::PermissionDenied { path }) => {
+                    Err(format!("Permission denied copying directory: {}", path))
+                },
+                Err(e) => Err(format!("Failed to copy directory '{}': {}", src.display(), e)),
+            }
         },
         core_engine::FileType::Symlink => {
             Err("Copying symlinks is not currently supported".to_string())

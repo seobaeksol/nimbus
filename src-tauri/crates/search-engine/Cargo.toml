@@ -4,5 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# Will be implemented later
 serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1.42", features = ["full"] }
+jwalk = "0.8.1"
+rayon = "1.10.0"
+regex = "1.11.1"
+thiserror = "2.0"
+ignore = "0.4"
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3.14"

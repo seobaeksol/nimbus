@@ -5,7 +5,7 @@ use tauri::Manager;
 
 mod commands;
 
-use commands::{files, system};
+use commands::{files, search, system};
 
 fn main() {
     tauri::Builder::default()
@@ -22,6 +22,10 @@ fn main() {
             files::rename_item,
             files::get_system_paths,
             files::resolve_path,
+            // Search commands
+            search::start_search,
+            search::cancel_search,
+            search::get_active_searches,
             // System commands  
             system::get_system_info,
             system::greet,

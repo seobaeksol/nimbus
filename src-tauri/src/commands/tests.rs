@@ -139,6 +139,59 @@ async fn test_copy_item_file() {
 }
 
 #[tokio::test]
+async fn test_copy_item_directory() {
+    let temp_dir = create_temp_dir().await.expect("Failed to create temp dir");
+    
+    // Create source directory with nested structure
+    let source_dir = temp_dir.join("source_folder");
+    let nested_dir = source_dir.join("nested");
+    let dest_dir = temp_dir.join("dest_folder");
+    
+    fs::create_dir_all(&nested_dir).await.expect("Failed to create source structure");
+    
+    // Create test files in the directory structure
+    let file1 = source_dir.join("file1.txt");
+    let file2 = nested_dir.join("file2.txt");
+    let content1 = b"Content in root";
+    let content2 = b"Content in nested";
+    
+    fs::write(&file1, content1).await.expect("Failed to create file1");
+    fs::write(&file2, content2).await.expect("Failed to create file2");
+    
+    // Test directory copying
+    let result = copy_item(
+        source_dir.to_string_lossy().to_string(),
+        dest_dir.to_string_lossy().to_string(),
+    ).await;
+    
+    assert!(result.is_ok(), "Directory copy failed: {:?}", result);
+    
+    // Verify source directory still exists
+    assert!(source_dir.exists());
+    assert!(file1.exists());
+    assert!(file2.exists());
+    
+    // Verify destination directory and structure was created
+    assert!(dest_dir.exists());
+    let dest_file1 = dest_dir.join("file1.txt");
+    let dest_nested = dest_dir.join("nested");
+    let dest_file2 = dest_nested.join("file2.txt");
+    
+    assert!(dest_file1.exists());
+    assert!(dest_nested.exists());
+    assert!(dest_file2.exists());
+    
+    // Verify file contents were copied correctly
+    let copied_content1 = fs::read(&dest_file1).await.expect("Failed to read copied file1");
+    let copied_content2 = fs::read(&dest_file2).await.expect("Failed to read copied file2");
+    
+    assert_eq!(copied_content1, content1);
+    assert_eq!(copied_content2, content2);
+    
+    cleanup_temp_dir(&temp_dir).await.ok();
+}
+
+#[tokio::test]
 async fn test_move_item_command() {
     let temp_dir = create_temp_dir().await.expect("Failed to create temp dir");
     let source_file = temp_dir.join("source.txt");
