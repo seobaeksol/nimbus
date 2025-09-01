@@ -9,6 +9,8 @@ use std::time::SystemTime;
 use thiserror::Error;
 
 pub mod local_fs;
+#[cfg(test)]
+mod tests;
 
 pub use local_fs::LocalFileSystem;
 

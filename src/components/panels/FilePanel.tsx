@@ -510,7 +510,29 @@ const FilePanel: React.FC<FilePanelProps> = ({
             className="loading-state"
           />
         </div>
-        <div className="loading-content">Loading...</div>
+        <div className="loading-content" data-testid="loading-indicator">Loading...</div>
+      </div>
+    );
+  }
+
+  if (panel.error) {
+    return (
+      <div className="file-panel error">
+        <div className="panel-header">
+          <AddressBar
+            currentPath={panel.currentPath}
+            isActive={addressBarActive}
+            onNavigate={handleAddressBarNavigate}
+            onError={handleAddressBarError}
+            onFocus={handleAddressBarFocus}
+          />
+        </div>
+        <div className="error-content">
+          <div className="error-message">{panel.error}</div>
+          <button onClick={() => executeCommand("load-directory", { panelId: panel.id, path: panel.currentPath })}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

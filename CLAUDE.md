@@ -16,6 +16,8 @@ Use the `@` symbol to reference specific documentation sections quickly:
 - `@security` - Security considerations and development guidelines
 - `@testing` - Testing strategy for unit, integration, E2E, and performance tests
 - `@patterns` - Common development patterns for Tauri commands, components, plugins
+- `@workflow` - Development workflow, quality gates, and contribution process
+- `@troubleshooting` - Common issues and debugging techniques
 
 ### Documentation Files
 - `@docs/multi-panel.md` - Comprehensive multi-panel and grid layout documentation
@@ -24,6 +26,9 @@ Use the `@` symbol to reference specific documentation sections quickly:
 - `@docs/features/` - Individual feature documentation (archives, search, core-features)
 - `@docs/project/` - Project overview, roadmap, technology stack
 - `@docs/development/getting-started.md` - Detailed development setup guide
+- `@docs/development/DEVELOPMENT_WORKFLOW.md` - Complete development workflow guide
+- `@docs/development/QUICK_REFERENCE.md` - Essential commands and quick reference
+- `@docs/development/TROUBLESHOOTING.md` - Common issues and debugging guide
 
 ### Usage Examples
 - "Reference @grid-layouts for panel arrangement options"

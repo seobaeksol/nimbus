@@ -26,8 +26,8 @@ const MultiPanelLayout: React.FC = () => {
   const visiblePanels = panelOrder.slice(0, gridLayout.rows * gridLayout.cols);
 
   return (
-    <div className="multi-panel-layout">
-      <div className="grid-container" style={gridStyle}>
+    <div className="multi-panel-layout" data-testid="multi-panel-layout">
+      <div className="grid-container" style={gridStyle} role="grid">
         {visiblePanels.map((panelId) => {
           const panel = panels[panelId];
           if (!panel) return null;
@@ -38,6 +38,7 @@ const MultiPanelLayout: React.FC = () => {
             <div
               key={panelId}
               className={`panel-wrapper ${isActive ? "active" : ""}`}
+              data-testid={`panel-wrapper-${panelId}`}
               onClick={() => handlePanelClick(panelId)}
             >
               <FilePanel panel={panel} isActive={isActive} />

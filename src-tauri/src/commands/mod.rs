@@ -5,6 +5,8 @@
 
 pub mod files;
 pub mod system;
+#[cfg(test)]
+mod tests;
 
 // Common types for command results
 pub type CommandResult<T> = Result<T, String>;
