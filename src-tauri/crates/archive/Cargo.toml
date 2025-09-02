@@ -25,5 +25,12 @@ sevenz-rust = { version = "0.6", features = ["aes256"] }
 # RAR support (read-only) 
 unrar = "0.5"
 
+# Integrity verification
+crc32fast = "1.4"
+md-5 = "0.10"
+sha1 = "0.10" 
+sha2 = "0.10"
+hex = "0.4"
+
 [dev-dependencies]
 tempfile = "3.14"

@@ -24,6 +24,12 @@ use sevenz_rust::SevenZReader;
 #[allow(unused_imports)]
 use unrar::Archive as RarArchive;
 
+// Integrity verification
+use crc32fast::Hasher as Crc32Hasher;
+use md5::{Md5, Digest};
+use sha1::Sha1;
+use sha2::Sha256;
+
 /// Archive handling error types
 #[derive(Error, Debug)]
 pub enum ArchiveError {
@@ -50,6 +56,9 @@ pub enum ArchiveError {
     
     #[error("Permission denied: {path}")]
     PermissionDenied { path: String },
+    
+    #[error("Integrity verification failed: {reason}")]
+    IntegrityVerificationFailed { reason: String },
 }
 
 /// Archive format types
@@ -203,6 +212,119 @@ pub struct ArchiveEntry {
     pub is_encrypted: bool,
 }
 
+/// Hash algorithm types supported for integrity verification
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum HashAlgorithm {
+    Crc32,
+    Md5,
+    Sha1,
+    Sha256,
+}
+
+/// Integrity verification result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrityResult {
+    /// Whether the verification passed
+    pub passed: bool,
+    /// Hash algorithm used
+    pub algorithm: HashAlgorithm,
+    /// Expected hash value
+    pub expected: String,
+    /// Actual computed hash value
+    pub actual: String,
+    /// Error message if verification failed
+    pub error_message: Option<String>,
+}
+
+/// Utility functions for hash computation and verification
+pub struct IntegrityVerifier;
+
+impl IntegrityVerifier {
+    /// Compute CRC32 checksum for data
+    pub fn compute_crc32(data: &[u8]) -> u32 {
+        let mut hasher = Crc32Hasher::new();
+        hasher.update(data);
+        hasher.finalize()
+    }
+    
+    /// Compute MD5 hash for data
+    pub fn compute_md5(data: &[u8]) -> String {
+        let mut hasher = Md5::new();
+        hasher.update(data);
+        hex::encode(hasher.finalize())
+    }
+    
+    /// Compute SHA1 hash for data
+    pub fn compute_sha1(data: &[u8]) -> String {
+        use sha1::Digest;
+        let mut hasher = Sha1::new();
+        hasher.update(data);
+        hex::encode(hasher.finalize())
+    }
+    
+    /// Compute SHA256 hash for data
+    pub fn compute_sha256(data: &[u8]) -> String {
+        use sha2::Digest;
+        let mut hasher = Sha256::new();
+        hasher.update(data);
+        hex::encode(hasher.finalize())
+    }
+    
+    /// Compute hash using specified algorithm
+    pub fn compute_hash(data: &[u8], algorithm: HashAlgorithm) -> String {
+        match algorithm {
+            HashAlgorithm::Crc32 => format!("{:08x}", Self::compute_crc32(data)),
+            HashAlgorithm::Md5 => Self::compute_md5(data),
+            HashAlgorithm::Sha1 => Self::compute_sha1(data),
+            HashAlgorithm::Sha256 => Self::compute_sha256(data),
+        }
+    }
+    
+    /// Verify data integrity against archive entry CRC32
+    pub fn verify_crc32(data: &[u8], expected_crc32: u32) -> IntegrityResult {
+        let actual_crc32 = Self::compute_crc32(data);
+        let passed = actual_crc32 == expected_crc32;
+        
+        IntegrityResult {
+            passed,
+            algorithm: HashAlgorithm::Crc32,
+            expected: format!("{:08x}", expected_crc32),
+            actual: format!("{:08x}", actual_crc32),
+            error_message: if passed {
+                None
+            } else {
+                Some(format!(
+                    "CRC32 mismatch: expected {:08x}, got {:08x}",
+                    expected_crc32, actual_crc32
+                ))
+            },
+        }
+    }
+    
+    /// Verify data integrity against expected hash
+    pub fn verify_hash(data: &[u8], expected: &str, algorithm: HashAlgorithm) -> IntegrityResult {
+        let actual = Self::compute_hash(data, algorithm);
+        let expected_lower = expected.to_lowercase();
+        let actual_lower = actual.to_lowercase();
+        let passed = expected_lower == actual_lower;
+        
+        IntegrityResult {
+            passed,
+            algorithm,
+            expected: expected_lower.clone(),
+            actual: actual_lower.clone(),
+            error_message: if passed {
+                None
+            } else {
+                Some(format!(
+                    "{:?} hash mismatch: expected {}, got {}",
+                    algorithm, expected_lower, actual_lower
+                ))
+            },
+        }
+    }
+}
+
 /// Extraction options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractionOptions {
@@ -277,6 +399,48 @@ pub trait ArchiveReader: Send + Sync {
     
     /// Get the archive format
     fn format(&self) -> ArchiveFormat;
+    
+    /// Extract entry to memory and verify its integrity against archive CRC32
+    async fn extract_and_verify_crc32(&self, path: &str) -> Result<(Vec<u8>, IntegrityResult), ArchiveError> {
+        // Extract the data
+        let data = self.extract_entry_to_memory(path).await?;
+        
+        // Get the entry info to check CRC32
+        let entry = self.get_entry(path).await?
+            .ok_or_else(|| ArchiveError::NotFound { path: path.to_string() })?;
+            
+        // Verify integrity if CRC32 is available
+        let integrity_result = if let Some(expected_crc32) = entry.crc32 {
+            IntegrityVerifier::verify_crc32(&data, expected_crc32)
+        } else {
+            // No CRC32 available - mark as passed but with a note
+            IntegrityResult {
+                passed: true,
+                algorithm: HashAlgorithm::Crc32,
+                expected: "N/A".to_string(),
+                actual: format!("{:08x}", IntegrityVerifier::compute_crc32(&data)),
+                error_message: None,
+            }
+        };
+        
+        // Return error if verification failed
+        if !integrity_result.passed {
+            if let Some(ref error_msg) = integrity_result.error_message {
+                return Err(ArchiveError::IntegrityVerificationFailed {
+                    reason: error_msg.clone(),
+                });
+            }
+        }
+        
+        Ok((data, integrity_result))
+    }
+    
+    /// Extract entry to memory and compute specified hash
+    async fn extract_and_compute_hash(&self, path: &str, algorithm: HashAlgorithm) -> Result<(Vec<u8>, String), ArchiveError> {
+        let data = self.extract_entry_to_memory(path).await?;
+        let hash = IntegrityVerifier::compute_hash(&data, algorithm);
+        Ok((data, hash))
+    }
 }
 
 /// ZIP archive implementation
@@ -1494,6 +1658,38 @@ mod tests {
         let detected = ArchiveFormat::detect(&zip_path)
             .expect("Failed to detect ZIP format");
         assert_eq!(detected, Some(ArchiveFormat::Zip));
+    }
+    
+    #[tokio::test]
+    async fn test_integrity_verification() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        
+        let reader = ZipArchiveReader::new(zip_path);
+        
+        // Test CRC32 verification on a known file
+        let (data, integrity_result) = reader
+            .extract_and_verify_crc32("test.txt")
+            .await
+            .expect("Failed to extract and verify");
+            
+        assert_eq!(data, b"Hello, World!");
+        assert!(integrity_result.passed, "CRC32 verification should pass");
+        assert_eq!(integrity_result.algorithm, HashAlgorithm::Crc32);
+        
+        // Test hash computation
+        let (data2, sha256_hash) = reader
+            .extract_and_compute_hash("test.txt", HashAlgorithm::Sha256)
+            .await
+            .expect("Failed to extract and compute hash");
+            
+        assert_eq!(data2, b"Hello, World!");
+        // SHA256 of "Hello, World!" is known
+        assert_eq!(sha256_hash.len(), 64); // SHA256 is 64 hex chars
+        
+        // Test manual hash verification
+        let expected_sha256 = "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f";
+        let integrity_result = IntegrityVerifier::verify_hash(&data, expected_sha256, HashAlgorithm::Sha256);
+        assert!(integrity_result.passed, "SHA256 verification should pass");
     }
     
     #[tokio::test]
