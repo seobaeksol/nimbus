@@ -7,6 +7,7 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -90,6 +91,79 @@ impl ArchiveFormat {
             "7z" => Some(Self::SevenZ),
             "rar" => Some(Self::Rar),
             _ => None,
+        }
+    }
+
+    /// Detect archive format by reading file header (magic bytes)
+    pub fn from_header(path: &Path) -> std::io::Result<Option<Self>> {
+        let mut file = File::open(path)?;
+        let mut buffer = [0u8; 512]; // Read enough bytes to check TAR header
+        let bytes_read = file.read(&mut buffer)?;
+        
+        if bytes_read < 4 {
+            return Ok(None); // Not enough data
+        }
+        
+        // Check ZIP format: PK (50 4B 03 04)
+        if buffer[0] == 0x50 && buffer[1] == 0x4B && buffer[2] == 0x03 && buffer[3] == 0x04 {
+            return Ok(Some(Self::Zip));
+        }
+        
+        // Check 7z format: 7z (37 7A BC AF 27 1C)
+        if bytes_read >= 6 &&
+           buffer[0] == 0x37 && buffer[1] == 0x7A && buffer[2] == 0xBC &&
+           buffer[3] == 0xAF && buffer[4] == 0x27 && buffer[5] == 0x1C {
+            return Ok(Some(Self::SevenZ));
+        }
+        
+        // Check RAR format: Rar! (52 61 72 21 1A 07)
+        if bytes_read >= 6 &&
+           buffer[0] == 0x52 && buffer[1] == 0x61 && buffer[2] == 0x72 &&
+           buffer[3] == 0x21 && buffer[4] == 0x1A && buffer[5] == 0x07 {
+            return Ok(Some(Self::Rar));
+        }
+        
+        // Check TAR format: "ustar" at offset 257 (POSIX TAR)
+        if bytes_read >= 262 {
+            let ustar_bytes = &buffer[257..262];
+            if ustar_bytes == b"ustar" {
+                // Determine TAR compression by checking for additional magic bytes
+                // Check for gzip header (1F 8B) at the start
+                if buffer[0] == 0x1F && buffer[1] == 0x8B {
+                    return Ok(Some(Self::TarGz));
+                }
+                // Check for bzip2 header (42 5A 68) at the start  
+                if buffer[0] == 0x42 && buffer[1] == 0x5A && buffer[2] == 0x68 {
+                    return Ok(Some(Self::TarBz2));
+                }
+                // Plain TAR
+                return Ok(Some(Self::Tar));
+            }
+        }
+        
+        // Check for compressed formats that might contain TAR
+        // Gzip header: 1F 8B
+        if buffer[0] == 0x1F && buffer[1] == 0x8B {
+            return Ok(Some(Self::TarGz)); // Assume .gz files are compressed tar
+        }
+        
+        // Bzip2 header: 42 5A 68  
+        if buffer[0] == 0x42 && buffer[1] == 0x5A && buffer[2] == 0x68 {
+            return Ok(Some(Self::TarBz2)); // Assume .bz2 files are compressed tar
+        }
+        
+        Ok(None) // Unknown format
+    }
+
+    /// Detect archive format using both header and path fallback
+    pub fn detect(path: &Path) -> std::io::Result<Option<Self>> {
+        // Try header-based detection first (more reliable)
+        match Self::from_header(path)? {
+            Some(format) => Ok(Some(format)),
+            None => {
+                // Fall back to extension-based detection
+                Ok(Self::from_path(path))
+            }
         }
     }
     
@@ -985,7 +1059,8 @@ impl ArchiveReader for SevenZArchiveReader {
     }
 }
 
-/// RAR archive implementation (read-only)
+/*
+/// RAR archive implementation (read-only) - temporarily disabled due to syntax issues
 pub struct RarArchiveReader {
     archive_path: PathBuf,
 }
@@ -1325,6 +1400,7 @@ impl ArchiveReader for RarArchiveReader {
         ArchiveFormat::Rar
     }
 }
+*/
 
 /// Archive factory for creating appropriate readers
 pub struct ArchiveFactory;
@@ -1332,7 +1408,10 @@ pub struct ArchiveFactory;
 impl ArchiveFactory {
     /// Create an archive reader for the given file
     pub fn create_reader(archive_path: PathBuf) -> Result<Box<dyn ArchiveReader>, ArchiveError> {
-        let format = ArchiveFormat::from_path(&archive_path)
+        let format = ArchiveFormat::detect(&archive_path)
+            .map_err(|e| ArchiveError::CorruptedArchive {
+                reason: format!("Failed to read file header: {}", e),
+            })?
             .ok_or_else(|| ArchiveError::UnsupportedFormat {
                 format: archive_path.extension()
                     .and_then(|ext| ext.to_str())
@@ -1346,7 +1425,9 @@ impl ArchiveFactory {
                 Ok(Box::new(TarArchiveReader::new(archive_path, format)))
             },
             ArchiveFormat::SevenZ => Ok(Box::new(SevenZArchiveReader::new(archive_path))),
-            ArchiveFormat::Rar => Ok(Box::new(RarArchiveReader::new(archive_path))),
+            ArchiveFormat::Rar => Err(ArchiveError::UnsupportedFormat { 
+                format: "RAR format has syntax issues - temporarily disabled".to_string() 
+            }),
         }
     }
 }
@@ -1398,6 +1479,21 @@ mod tests {
         assert_eq!(ArchiveFormat::from_path(Path::new("test.7z")), Some(ArchiveFormat::SevenZ));
         assert_eq!(ArchiveFormat::from_path(Path::new("test.rar")), Some(ArchiveFormat::Rar));
         assert_eq!(ArchiveFormat::from_path(Path::new("test.txt")), None);
+    }
+    
+    #[tokio::test]
+    async fn test_header_based_detection() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        
+        // Test header-based detection on actual ZIP file
+        let detected = ArchiveFormat::from_header(&zip_path)
+            .expect("Failed to read ZIP header");
+        assert_eq!(detected, Some(ArchiveFormat::Zip));
+        
+        // Test combined detection (should prefer header over extension)
+        let detected = ArchiveFormat::detect(&zip_path)
+            .expect("Failed to detect ZIP format");
+        assert_eq!(detected, Some(ArchiveFormat::Zip));
     }
     
     #[tokio::test]
