@@ -20,9 +20,9 @@ flate2 = "1.0"  # For gzip compression
 bzip2 = "0.4"   # For bzip2 compression
 
 # 7z support
-sevenz-rust = "0.5"
+sevenz-rust = { version = "0.6", features = ["aes256"] }
 
-# RAR support (read-only)
+# RAR support (read-only) 
 unrar = "0.5"
 
 [dev-dependencies]
