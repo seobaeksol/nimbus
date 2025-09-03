@@ -471,10 +471,12 @@ pub mod utils {
 pub mod sftp;
 pub mod ftp;
 pub mod webdav;
+pub mod credentials;
 
 pub use sftp::SftpClient;
 pub use ftp::FtpClient;
 pub use webdav::WebDavClient;
+pub use credentials::{CredentialManager, StoredCredentials, ConnectionMetadata};
 
 #[cfg(test)]
 mod tests {

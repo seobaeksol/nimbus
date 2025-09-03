@@ -1,0 +1,540 @@
+.connection-manager-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.connection-manager {
+  background-color: #3c3c3c;
+  border: 1px solid #555555;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  width: 1000px;
+  max-width: 95vw;
+  height: 700px;
+  max-height: 90vh;
+  color: #ffffff;
+  animation: dialogSlideIn 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.connection-manager-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #555555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.connection-manager-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.connection-manager-close-button {
+  background: none;
+  border: none;
+  color: #cccccc;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.connection-manager-close-button:hover {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+.connection-manager-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* Connection List Panel */
+.connection-list-panel {
+  width: 400px;
+  border-right: 1px solid #555555;
+  display: flex;
+  flex-direction: column;
+}
+
+.connection-list-header {
+  padding: 16px;
+  border-bottom: 1px solid #555555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.connection-list-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.connection-add-button {
+  background-color: #0078d4;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.connection-add-button:hover {
+  background-color: #106ebe;
+}
+
+.connection-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.connection-item {
+  background-color: #2d2d2d;
+  border: 1px solid #555555;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.connection-item:hover {
+  background-color: #404040;
+  border-color: #666666;
+}
+
+.connection-item.selected {
+  background-color: #0078d4;
+  border-color: #106ebe;
+}
+
+.connection-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.connection-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.connection-status {
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.connection-status.connected {
+  color: #4fc3f7;
+}
+
+.connection-status.disconnected {
+  color: #666666;
+}
+
+.connection-details {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.protocol-badge {
+  background-color: #555555;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.connection-host {
+  font-size: 12px;
+  color: #cccccc;
+  font-family: monospace;
+}
+
+.test-result {
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.test-result.success {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.test-result.error {
+  background-color: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.connection-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.action-button {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-button:hover:not(:disabled) {
+  background-color: #404040;
+}
+
+.action-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.action-button.test {
+  border-color: #0078d4;
+  color: #0078d4;
+}
+
+.action-button.test:hover:not(:disabled) {
+  background-color: rgba(0, 120, 212, 0.1);
+}
+
+.action-button.connect {
+  border-color: #4caf50;
+  color: #4caf50;
+}
+
+.action-button.connect:hover:not(:disabled) {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.action-button.disconnect {
+  border-color: #ff9800;
+  color: #ff9800;
+}
+
+.action-button.disconnect:hover:not(:disabled) {
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.action-button.edit {
+  border-color: #2196f3;
+  color: #2196f3;
+}
+
+.action-button.edit:hover:not(:disabled) {
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+.action-button.delete {
+  border-color: #f44336;
+  color: #f44336;
+}
+
+.action-button.delete:hover:not(:disabled) {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #888888;
+}
+
+.empty-state p {
+  margin: 8px 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Connection Form Panel */
+.connection-form-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.connection-form-header {
+  padding: 16px;
+  border-bottom: 1px solid #555555;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.connection-form-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: #ffffff;
+}
+
+.form-close-button {
+  background: none;
+  border: none;
+  color: #cccccc;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.form-close-button:hover {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+.connection-form {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.form-section {
+  margin-bottom: 24px;
+}
+
+.form-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  border-bottom: 1px solid #555555;
+  padding-bottom: 4px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group.checkbox {
+  margin-bottom: 12px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+.form-group.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  color: #ffffff;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input[type="checkbox"] {
+  width: auto;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  border-color: #0078d4;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.form-group input::placeholder {
+  color: #888888;
+}
+
+.form-group select option {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.file-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.file-input-group input {
+  flex: 1;
+}
+
+.file-select-button {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: 1px solid #555555;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.file-select-button:hover {
+  background-color: #404040;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #555555;
+}
+
+.form-button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  min-width: 120px;
+}
+
+.form-button.cancel {
+  background-color: #2d2d2d;
+  color: #ffffff;
+  border: 1px solid #555555;
+}
+
+.form-button.cancel:hover {
+  background-color: #404040;
+}
+
+.form-button.save {
+  background-color: #0078d4;
+  color: #ffffff;
+}
+
+.form-button.save:hover:not(:disabled) {
+  background-color: #106ebe;
+}
+
+.form-button.save:disabled {
+  background-color: #555555;
+  color: #888888;
+  cursor: not-allowed;
+}
+
+.form-button:focus {
+  outline: 2px solid #0078d4;
+  outline-offset: 2px;
+}
+
+@keyframes dialogSlideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .connection-manager {
+    width: 95vw;
+    height: 90vh;
+    flex-direction: column;
+  }
+  
+  .connection-manager-body {
+    flex-direction: column;
+  }
+  
+  .connection-list-panel {
+    width: 100%;
+    max-height: 300px;
+    border-right: none;
+    border-bottom: 1px solid #555555;
+  }
+  
+  .connection-form-panel {
+    flex: 1;
+  }
+  
+  .form-row {
+    flex-direction: column;
+  }
+}
+
+/* Scrollbar styling */
+.connection-list::-webkit-scrollbar,
+.connection-form::-webkit-scrollbar {
+  width: 6px;
+}
+
+.connection-list::-webkit-scrollbar-track,
+.connection-form::-webkit-scrollbar-track {
+  background-color: #2d2d2d;
+}
+
+.connection-list::-webkit-scrollbar-thumb,
+.connection-form::-webkit-scrollbar-thumb {
+  background-color: #555555;
+  border-radius: 3px;
+}
+
+.connection-list::-webkit-scrollbar-thumb:hover,
+.connection-form::-webkit-scrollbar-thumb:hover {
+  background-color: #666666;
+}
