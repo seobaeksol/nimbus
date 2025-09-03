@@ -33,6 +33,15 @@ use md5::{Md5, Digest};
 use sha1::Sha1;
 use sha2::Sha256;
 
+// Constants for magic byte detection
+const ZIP_MAGIC: [u8; 4] = [0x50, 0x4B, 0x03, 0x04];
+const SEVENZ_MAGIC: [u8; 6] = [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C];
+const RAR_MAGIC: [u8; 6] = [0x52, 0x61, 0x72, 0x21, 0x1A, 0x07];
+const GZIP_MAGIC: [u8; 2] = [0x1F, 0x8B];
+const BZIP2_MAGIC: [u8; 3] = [0x42, 0x5A, 0x68];
+const TAR_USTAR_OFFSET: usize = 257;
+const TAR_USTAR_MAGIC: &[u8] = b"ustar";
+
 /// Archive handling error types
 #[derive(Error, Debug)]
 pub enum ArchiveError {
@@ -88,7 +97,14 @@ pub enum ArchiveFormat {
 }
 
 impl ArchiveFormat {
-    /// Detect archive format from file extension
+    /// Detect archive format from file extension.
+    /// 
+    /// # Arguments
+    /// * `path` - The file path to analyze
+    /// 
+    /// # Returns
+    /// * `Some(ArchiveFormat)` if a known format is detected
+    /// * `None` if the format is unknown or not supported
     pub fn from_path(path: &Path) -> Option<Self> {
         let extension = path.extension()?.to_str()?.to_lowercase();
         let path_str = path.to_str()?.to_lowercase();
@@ -118,7 +134,24 @@ impl ArchiveFormat {
         }
     }
 
-    /// Detect archive format by reading file header (magic bytes)
+    /// Detect archive format by reading file header magic bytes.
+    /// This is more reliable than extension-based detection.
+    /// 
+    /// # Arguments
+    /// * `path` - The file path to analyze
+    /// 
+    /// # Returns
+    /// * `Ok(Some(ArchiveFormat))` if a format is detected
+    /// * `Ok(None)` if no known format is detected
+    /// * `Err(std::io::Error)` if file cannot be read
+    /// 
+    /// # Magic Bytes Detected
+    /// * ZIP: `50 4B 03 04`
+    /// * 7Z: `37 7A BC AF 27 1C`
+    /// * RAR: `52 61 72 21 1A 07`
+    /// * GZIP: `1F 8B`
+    /// * BZIP2: `42 5A 68`
+    /// * TAR: `ustar` at offset 257
     pub fn from_header(path: &Path) -> std::io::Result<Option<Self>> {
         let mut file = File::open(path)?;
         let mut buffer = [0u8; 512]; // Read enough bytes to check TAR header
@@ -128,36 +161,32 @@ impl ArchiveFormat {
             return Ok(None); // Not enough data
         }
         
-        // Check ZIP format: PK (50 4B 03 04)
-        if buffer[0] == 0x50 && buffer[1] == 0x4B && buffer[2] == 0x03 && buffer[3] == 0x04 {
+        // Check ZIP format
+        if bytes_read >= ZIP_MAGIC.len() && buffer.starts_with(&ZIP_MAGIC) {
             return Ok(Some(Self::Zip));
         }
         
-        // Check 7z format: 7z (37 7A BC AF 27 1C)
-        if bytes_read >= 6 &&
-           buffer[0] == 0x37 && buffer[1] == 0x7A && buffer[2] == 0xBC &&
-           buffer[3] == 0xAF && buffer[4] == 0x27 && buffer[5] == 0x1C {
+        // Check 7z format
+        if bytes_read >= SEVENZ_MAGIC.len() && buffer.starts_with(&SEVENZ_MAGIC) {
             return Ok(Some(Self::SevenZ));
         }
         
-        // Check RAR format: Rar! (52 61 72 21 1A 07)
-        if bytes_read >= 6 &&
-           buffer[0] == 0x52 && buffer[1] == 0x61 && buffer[2] == 0x72 &&
-           buffer[3] == 0x21 && buffer[4] == 0x1A && buffer[5] == 0x07 {
+        // Check RAR format
+        if bytes_read >= RAR_MAGIC.len() && buffer.starts_with(&RAR_MAGIC) {
             return Ok(Some(Self::Rar));
         }
         
         // Check TAR format: "ustar" at offset 257 (POSIX TAR)
-        if bytes_read >= 262 {
-            let ustar_bytes = &buffer[257..262];
-            if ustar_bytes == b"ustar" {
+        if bytes_read >= TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.len() {
+            let ustar_bytes = &buffer[TAR_USTAR_OFFSET..TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.len()];
+            if ustar_bytes == TAR_USTAR_MAGIC {
                 // Determine TAR compression by checking for additional magic bytes
-                // Check for gzip header (1F 8B) at the start
-                if buffer[0] == 0x1F && buffer[1] == 0x8B {
+                // Check for gzip header at the start
+                if buffer.starts_with(&GZIP_MAGIC) {
                     return Ok(Some(Self::TarGz));
                 }
-                // Check for bzip2 header (42 5A 68) at the start  
-                if buffer[0] == 0x42 && buffer[1] == 0x5A && buffer[2] == 0x68 {
+                // Check for bzip2 header at the start
+                if buffer.starts_with(&BZIP2_MAGIC) {
                     return Ok(Some(Self::TarBz2));
                 }
                 // Plain TAR
@@ -166,13 +195,12 @@ impl ArchiveFormat {
         }
         
         // Check for compressed formats that might contain TAR
-        // Gzip header: 1F 8B
-        if buffer[0] == 0x1F && buffer[1] == 0x8B {
+        if buffer.starts_with(&GZIP_MAGIC) {
             return Ok(Some(Self::TarGz)); // Assume .gz files are compressed tar
         }
         
-        // Bzip2 header: 42 5A 68  
-        if buffer[0] == 0x42 && buffer[1] == 0x5A && buffer[2] == 0x68 {
+        // Bzip2 header
+        if buffer.starts_with(&BZIP2_MAGIC) {
             return Ok(Some(Self::TarBz2)); // Assume .bz2 files are compressed tar
         }
         
@@ -458,7 +486,7 @@ impl ErrorHandler {
     /// Create enhanced error context for common archive errors
     pub fn create_context(error: &ArchiveError, operation_context: &str) -> ErrorContext {
         let (suggestions, retryable, severity) = match error {
-            ArchiveError::NotFound { path } => (
+            ArchiveError::NotFound { path: _ } => (
                 vec![
                     "Verify the file path is correct".to_string(),
                     "Check if the file was moved or deleted".to_string(),
@@ -1185,11 +1213,12 @@ impl ArchiveReader for ZipArchiveReader {
 }
 
 /// ZIP archive writer for creating ZIP files
+#[derive(Debug, Default)]
 pub struct ZipArchiveWriter;
 
 impl ZipArchiveWriter {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
@@ -1323,7 +1352,7 @@ impl ArchiveWriter for ZipArchiveWriter {
             }
             
             // Set password if provided
-            if let Some(password) = options.password {
+            if let Some(_password) = options.password {
                 // Note: The zip crate doesn't support password protection in the current version
                 // This would need to be implemented when a newer version supports it
                 // For now, we'll return an error
@@ -1453,6 +1482,7 @@ impl TarArchiveReader {
     }
     
     /// Helper to create the appropriate TAR archive reader based on compression
+    #[allow(dead_code)]
     fn create_tar_archive(&self, file: std::fs::File) -> Result<Box<dyn std::io::Read + Send>, ArchiveError> {
         match self.format {
             ArchiveFormat::Tar => Ok(Box::new(file)),
@@ -1764,6 +1794,7 @@ impl ArchiveReader for TarArchiveReader {
 }
 
 /// TAR archive writer for creating TAR files with various compression options
+#[derive(Debug)]
 pub struct TarArchiveWriter {
     format: ArchiveFormat,
 }
@@ -2088,11 +2119,12 @@ impl ArchiveReader for SevenZArchiveReader {
 }
 
 /// 7z archive writer for creating 7z files
+#[derive(Debug, Default)]
 pub struct SevenZArchiveWriter;
 
 impl SevenZArchiveWriter {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 }
 
