@@ -14,8 +14,11 @@ use thiserror::Error;
 
 // TAR support
 use tar::Archive as TarArchive;
+use tar::Builder as TarBuilder;
 use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
 use bzip2::read::BzDecoder;
+use bzip2::write::BzEncoder;
 
 // 7z support
 use sevenz_rust::SevenZReader;
@@ -729,6 +732,97 @@ pub trait ArchiveReader: Send + Sync {
     }
 }
 
+/// Archive creation options
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressionOptions {
+    /// Compression level (0-9, where 0 is no compression and 9 is maximum compression)
+    pub level: u8,
+    /// Compression method (format-specific)
+    pub method: CompressionMethod,
+    /// Password for encrypted archives (optional)
+    pub password: Option<String>,
+    /// Whether to use solid compression (7z only)
+    pub solid: bool,
+    /// Include file timestamps
+    pub preserve_timestamps: bool,
+}
+
+impl Default for CompressionOptions {
+    fn default() -> Self {
+        Self {
+            level: 6, // Balanced compression
+            method: CompressionMethod::Deflate,
+            password: None,
+            solid: false,
+            preserve_timestamps: true,
+        }
+    }
+}
+
+/// Compression methods supported by different formats
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum CompressionMethod {
+    /// No compression
+    Store,
+    /// Deflate compression (ZIP default)
+    Deflate,
+    /// LZMA compression (7z, TAR.xz)
+    Lzma,
+    /// LZMA2 compression (7z default)
+    Lzma2,
+    /// Bzip2 compression (TAR.bz2)
+    Bzip2,
+    /// Gzip compression (TAR.gz)
+    Gzip,
+}
+
+/// Files to be added to an archive during creation
+#[derive(Debug, Clone)]
+pub struct ArchiveInputEntry {
+    /// Source file path
+    pub source_path: PathBuf,
+    /// Path within the archive
+    pub archive_path: String,
+    /// Whether this is a directory
+    pub is_directory: bool,
+}
+
+/// Archive writer trait for creating archives
+#[async_trait]
+pub trait ArchiveWriter: Send + Sync {
+    /// Get the archive format this writer supports
+    fn format(&self) -> ArchiveFormat;
+    
+    /// Check if this format supports password protection
+    fn supports_password(&self) -> bool;
+    
+    /// Check if this format supports the given compression method
+    fn supports_compression(&self, method: CompressionMethod) -> bool;
+    
+    /// Create a new archive with the given files
+    async fn create_archive(
+        &self,
+        archive_path: &Path,
+        entries: Vec<ArchiveInputEntry>,
+        options: CompressionOptions,
+        progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError>;
+    
+    /// Add entries to an existing archive (if supported)
+    async fn add_to_archive(
+        &self,
+        _archive_path: &Path,
+        _entries: Vec<ArchiveInputEntry>,
+        _options: CompressionOptions,
+        _progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        // Default implementation: not supported
+        Err(ArchiveError::UnsupportedFormat { 
+            format: format!("Adding to existing {:?} archives not supported", self.format()) 
+        })
+    }
+}
+
 /// ZIP archive implementation
 pub struct ZipArchiveReader {
     archive_path: PathBuf,
@@ -1090,6 +1184,262 @@ impl ArchiveReader for ZipArchiveReader {
     }
 }
 
+/// ZIP archive writer for creating ZIP files
+pub struct ZipArchiveWriter;
+
+impl ZipArchiveWriter {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl ArchiveWriter for ZipArchiveWriter {
+    fn format(&self) -> ArchiveFormat {
+        ArchiveFormat::Zip
+    }
+    
+    fn supports_password(&self) -> bool {
+        true
+    }
+    
+    fn supports_compression(&self, method: CompressionMethod) -> bool {
+        matches!(method, CompressionMethod::Store | CompressionMethod::Deflate)
+    }
+    
+    async fn create_archive(
+        &self,
+        archive_path: &Path,
+        entries: Vec<ArchiveInputEntry>,
+        options: CompressionOptions,
+        progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        let archive_path = archive_path.to_path_buf();
+        let total_files = entries.len();
+        let mut total_bytes = 0u64;
+        
+        // Calculate total bytes for progress tracking
+        for entry in &entries {
+            if !entry.is_directory && entry.source_path.exists() {
+                if let Ok(metadata) = std::fs::metadata(&entry.source_path) {
+                    total_bytes += metadata.len();
+                }
+            }
+        }
+        
+        // Create progress tracker
+        let mut progress_tracker = ProgressTracker::new(ProgressOperation::Compressing);
+        
+        tokio::task::spawn_blocking(move || -> Result<(), ArchiveError> {
+            // Create the ZIP file
+            let file = std::fs::File::create(&archive_path)
+                .map_err(|e| ArchiveError::Io(e))?;
+            
+            let mut zip = zip::ZipWriter::new(file);
+            let mut files_processed = 0usize;
+            let mut bytes_processed = 0u64;
+            
+            // Set ZIP writer options
+            let zip_options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+                .compression_method(match options.method {
+                    CompressionMethod::Store => zip::CompressionMethod::Stored,
+                    CompressionMethod::Deflate => zip::CompressionMethod::Deflated,
+                    _ => zip::CompressionMethod::Deflated, // Default fallback
+                })
+                .compression_level(Some(options.level as i64));
+            
+            for entry in entries {
+                // Update progress
+                if let Some(ref callback) = progress_callback {
+                    let progress = progress_tracker.create_progress(
+                        entry.archive_path.clone(),
+                        files_processed,
+                        total_files,
+                        bytes_processed,
+                        total_bytes,
+                        ProgressStage::Processing,
+                        None,
+                    );
+                    callback(progress);
+                }
+                
+                if entry.is_directory {
+                    // Add directory entry
+                    let dir_path = if entry.archive_path.ends_with('/') {
+                        entry.archive_path
+                    } else {
+                        format!("{}/", entry.archive_path)
+                    };
+                    
+                    zip.add_directory(&dir_path, zip_options)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to add directory '{}': {}", dir_path, e),
+                        })?;
+                } else {
+                    // Add file entry
+                    if !entry.source_path.exists() {
+                        return Err(ArchiveError::NotFound {
+                            path: entry.source_path.to_string_lossy().to_string(),
+                        });
+                    }
+                    
+                    let mut file_options = zip_options;
+                    
+                    // Set timestamps if requested
+                    if options.preserve_timestamps {
+                        if let Ok(metadata) = std::fs::metadata(&entry.source_path) {
+                            if let Ok(modified) = metadata.modified() {
+                                if let Ok(datetime) = modified.duration_since(std::time::UNIX_EPOCH) {
+                                    let zip_time = zip::DateTime::try_from(time::OffsetDateTime::from_unix_timestamp(datetime.as_secs() as i64).unwrap_or(time::OffsetDateTime::now_utc())).unwrap_or(zip::DateTime::default());
+                                    file_options = file_options.last_modified_time(zip_time);
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Start file in archive
+                    zip.start_file(&entry.archive_path, file_options)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to start file '{}' in archive: {}", entry.archive_path, e),
+                        })?;
+                    
+                    // Copy file content
+                    let mut source_file = std::fs::File::open(&entry.source_path)
+                        .map_err(|e| ArchiveError::Io(e))?;
+                    
+                    let file_size = source_file.metadata()
+                        .map_err(|e| ArchiveError::Io(e))?
+                        .len();
+                    
+                    std::io::copy(&mut source_file, &mut zip)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to copy file '{}' to archive: {}", entry.source_path.display(), e),
+                        })?;
+                    
+                    bytes_processed += file_size;
+                }
+                
+                files_processed += 1;
+            }
+            
+            // Set password if provided
+            if let Some(password) = options.password {
+                // Note: The zip crate doesn't support password protection in the current version
+                // This would need to be implemented when a newer version supports it
+                // For now, we'll return an error
+                return Err(ArchiveError::UnsupportedFormat {
+                    format: "Password protection not yet supported for ZIP creation".to_string(),
+                });
+            }
+            
+            // Finish the ZIP file
+            zip.finish()
+                .map_err(|e| ArchiveError::ExtractionFailed {
+                    reason: format!("Failed to finish ZIP archive: {}", e),
+                })?;
+            
+            // Final progress callback
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_completion(total_files, total_bytes);
+                callback(progress);
+            }
+            
+            Ok(())
+        }).await.map_err(|e| ArchiveError::ExtractionFailed {
+            reason: format!("Archive creation task failed: {}", e),
+        })?
+    }
+    
+    async fn add_to_archive(
+        &self,
+        archive_path: &Path,
+        entries: Vec<ArchiveInputEntry>,
+        options: CompressionOptions,
+        progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        // ZIP format supports adding to existing archives
+        let archive_path = archive_path.to_path_buf();
+        let total_files = entries.len();
+        
+        tokio::task::spawn_blocking(move || -> Result<(), ArchiveError> {
+            // Open existing ZIP file
+            let file = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&archive_path)
+                .map_err(|e| ArchiveError::Io(e))?;
+            
+            let mut zip = zip::ZipWriter::new_append(file)
+                .map_err(|e| ArchiveError::CorruptedArchive {
+                    reason: format!("Failed to open ZIP archive for appending: {}", e),
+                })?;
+            
+            let mut progress_tracker = ProgressTracker::new(ProgressOperation::Compressing);
+            let mut files_processed = 0usize;
+            
+            let zip_options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+                .compression_method(match options.method {
+                    CompressionMethod::Store => zip::CompressionMethod::Stored,
+                    CompressionMethod::Deflate => zip::CompressionMethod::Deflated,
+                    _ => zip::CompressionMethod::Deflated,
+                })
+                .compression_level(Some(options.level as i64));
+            
+            for entry in entries {
+                // Update progress
+                if let Some(ref callback) = progress_callback {
+                    let progress = progress_tracker.create_progress(
+                        entry.archive_path.clone(),
+                        files_processed,
+                        total_files,
+                        0, 0, // Bytes not tracked for append operations
+                        ProgressStage::Processing,
+                        None,
+                    );
+                    callback(progress);
+                }
+                
+                if entry.is_directory {
+                    let dir_path = if entry.archive_path.ends_with('/') {
+                        entry.archive_path
+                    } else {
+                        format!("{}/", entry.archive_path)
+                    };
+                    
+                    zip.add_directory(&dir_path, zip_options)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to add directory to archive: {}", e),
+                        })?;
+                } else {
+                    zip.start_file(&entry.archive_path, zip_options)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to start file in archive: {}", e),
+                        })?;
+                    
+                    let mut source_file = std::fs::File::open(&entry.source_path)
+                        .map_err(|e| ArchiveError::Io(e))?;
+                    
+                    std::io::copy(&mut source_file, &mut zip)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to copy file to archive: {}", e),
+                        })?;
+                }
+                
+                files_processed += 1;
+            }
+            
+            zip.finish()
+                .map_err(|e| ArchiveError::ExtractionFailed {
+                    reason: format!("Failed to finish ZIP archive: {}", e),
+                })?;
+            
+            Ok(())
+        }).await.map_err(|e| ArchiveError::ExtractionFailed {
+            reason: format!("Archive append task failed: {}", e),
+        })?
+    }
+}
+
 /// TAR archive implementation
 pub struct TarArchiveReader {
     archive_path: PathBuf,
@@ -1413,6 +1763,159 @@ impl ArchiveReader for TarArchiveReader {
     }
 }
 
+/// TAR archive writer for creating TAR files with various compression options
+pub struct TarArchiveWriter {
+    format: ArchiveFormat,
+}
+
+impl TarArchiveWriter {
+    pub fn new(format: ArchiveFormat) -> Self {
+        Self { format }
+    }
+}
+
+#[async_trait]
+impl ArchiveWriter for TarArchiveWriter {
+    fn format(&self) -> ArchiveFormat {
+        self.format
+    }
+    
+    fn supports_password(&self) -> bool {
+        false // TAR format doesn't support password protection
+    }
+    
+    fn supports_compression(&self, method: CompressionMethod) -> bool {
+        matches!(method, CompressionMethod::Store | CompressionMethod::Gzip | CompressionMethod::Bzip2)
+    }
+    
+    async fn create_archive(
+        &self,
+        archive_path: &Path,
+        entries: Vec<ArchiveInputEntry>,
+        options: CompressionOptions,
+        progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        let archive_path = archive_path.to_path_buf();
+        let format = self.format;
+        
+        tokio::task::spawn_blocking(move || -> Result<(), ArchiveError> {
+            // Create the TAR file with appropriate compression
+            let file = std::fs::File::create(&archive_path)
+                .map_err(|e| ArchiveError::Io(e))?;
+            
+            let writer: Box<dyn std::io::Write + Send> = match format {
+                ArchiveFormat::Tar => Box::new(file),
+                ArchiveFormat::TarGz => {
+                    let encoder = flate2::write::GzEncoder::new(file, flate2::Compression::new(options.level as u32));
+                    Box::new(encoder)
+                },
+                ArchiveFormat::TarBz2 => {
+                    let encoder = bzip2::write::BzEncoder::new(file, bzip2::Compression::new(options.level as u32));
+                    Box::new(encoder)
+                },
+                _ => return Err(ArchiveError::UnsupportedFormat {
+                    format: format!("TAR writer doesn't support format: {:?}", format),
+                }),
+            };
+            
+            let mut tar_builder = TarBuilder::new(writer);
+            let mut progress_tracker = ProgressTracker::new(ProgressOperation::Compressing);
+            let mut files_processed = 0usize;
+            let mut bytes_processed = 0u64;
+            
+            // Calculate totals for progress tracking
+            let total_files = entries.len();
+            let mut total_bytes = 0u64;
+            for entry in &entries {
+                if !entry.is_directory {
+                    if let Ok(metadata) = std::fs::metadata(&entry.source_path) {
+                        total_bytes += metadata.len();
+                    }
+                }
+            }
+            
+            for entry in entries {
+                // Update progress
+                if let Some(ref callback) = progress_callback {
+                    let progress = progress_tracker.create_progress(
+                        entry.archive_path.clone(),
+                        files_processed,
+                        total_files,
+                        bytes_processed,
+                        total_bytes,
+                        ProgressStage::Processing,
+                        None,
+                    );
+                    callback(progress);
+                }
+                
+                if entry.is_directory {
+                    // Add directory to TAR
+                    tar_builder.append_dir(&entry.archive_path, &entry.source_path)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to add directory '{}': {}", entry.archive_path, e),
+                        })?;
+                } else {
+                    // Add file to TAR
+                    let mut file = std::fs::File::open(&entry.source_path)
+                        .map_err(|e| ArchiveError::Io(e))?;
+                    
+                    let file_size = file.metadata()
+                        .map_err(|e| ArchiveError::Io(e))?.len();
+                    
+                    tar_builder.append_file(&entry.archive_path, &mut file)
+                        .map_err(|e| ArchiveError::ExtractionFailed {
+                            reason: format!("Failed to add file '{}': {}", entry.archive_path, e),
+                        })?;
+                    
+                    bytes_processed += file_size;
+                }
+                
+                files_processed += 1;
+            }
+            
+            // Finalize the archive
+            tar_builder.finish()
+                .map_err(|e| ArchiveError::ExtractionFailed {
+                    reason: format!("Failed to finalize TAR archive: {}", e),
+                })?;
+            
+            // Final progress update
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_progress(
+                    "Archive completed".to_string(),
+                    files_processed,
+                    total_files,
+                    bytes_processed,
+                    total_bytes,
+                    ProgressStage::Completed,
+                    None,
+                );
+                callback(progress);
+            }
+            
+            Ok(())
+        }).await.map_err(|e| ArchiveError::ExtractionFailed {
+            reason: format!("Task join error: {}", e),
+        })?
+    }
+    
+    async fn add_to_archive(
+        &self,
+        _archive_path: &Path,
+        _entries: Vec<ArchiveInputEntry>,
+        _options: CompressionOptions,
+        _progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        // TAR format doesn't support adding to existing archives efficiently
+        // We would need to extract all, add new files, and recreate
+        // For now, return unsupported error
+        Err(ArchiveError::UnsupportedFormat {
+            format: format!("Adding to existing TAR archives is not supported. Format: {:?}", self.format),
+        })
+    }
+}
+
 /// 7z archive implementation using sevenz-rust 0.6.1 API
 pub struct SevenZArchiveReader {
     archive_path: PathBuf,
@@ -1581,6 +2084,59 @@ impl ArchiveReader for SevenZArchiveReader {
     
     fn format(&self) -> ArchiveFormat {
         ArchiveFormat::SevenZ
+    }
+}
+
+/// 7z archive writer for creating 7z files
+pub struct SevenZArchiveWriter;
+
+impl SevenZArchiveWriter {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait]
+impl ArchiveWriter for SevenZArchiveWriter {
+    fn format(&self) -> ArchiveFormat {
+        ArchiveFormat::SevenZ
+    }
+    
+    fn supports_password(&self) -> bool {
+        true // 7z supports password protection
+    }
+    
+    fn supports_compression(&self, method: CompressionMethod) -> bool {
+        // 7z supports various compression methods; LZMA2 is default
+        matches!(method, CompressionMethod::Store | CompressionMethod::Lzma | CompressionMethod::Lzma2)
+    }
+    
+    async fn create_archive(
+        &self,
+        _archive_path: &Path,
+        _entries: Vec<ArchiveInputEntry>,
+        _options: CompressionOptions,
+        _progress_callback: Option<Box<dyn Fn(ProgressInfo) + Send + Sync>>,
+    ) -> Result<(), ArchiveError> {
+        tokio::task::spawn_blocking(move || -> Result<(), ArchiveError> {
+            // Unfortunately, sevenz-rust 0.6.x doesn't provide a straightforward
+            // creation API like zip or tar crates. The crate is primarily focused
+            // on decompression and doesn't expose public APIs for creating archives.
+            // 
+            // For a production implementation, we would need either:
+            // 1. A different 7z crate that supports creation (like sevenz-rs)
+            // 2. Custom implementation using LZMA2 compression
+            // 3. Integration with p7zip command-line tool
+            //
+            // For now, we'll return an unsupported error.
+            
+            Err(ArchiveError::UnsupportedFormat {
+                format: "7z archive creation is not supported with current sevenz-rust crate version. \
+                         The crate only supports extraction. Consider using ZIP or TAR formats for creation.".to_string(),
+            })
+        }).await.map_err(|e| ArchiveError::ExtractionFailed {
+            reason: format!("Task join error: {}", e),
+        })?
     }
 }
 

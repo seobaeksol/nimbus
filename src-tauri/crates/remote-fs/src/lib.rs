@@ -65,7 +65,7 @@ pub struct RemoteConfig {
 }
 
 /// Supported remote protocols
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub enum RemoteProtocol {
     Sftp,
     Ftp,

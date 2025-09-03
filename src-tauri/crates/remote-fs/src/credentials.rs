@@ -182,10 +182,13 @@ impl CredentialManager {
                 message: format!("Keychain operation failed: {}", e),
             },
             KeyringError::Ambiguous(e) => RemoteError::Other {
-                message: format!("Ambiguous keychain entry: {}", e),
+                message: format!("Ambiguous keychain entry: {:?}", e),
             },
-            KeyringError::Invalid(e) => RemoteError::Other {
-                message: format!("Invalid keychain operation: {}", e),
+            KeyringError::Invalid(e1, e2) => RemoteError::Other {
+                message: format!("Invalid keychain operation: {} - {}", e1, e2),
+            },
+            _ => RemoteError::Other {
+                message: "Unknown keychain error".to_string(),
             },
         }
     }
