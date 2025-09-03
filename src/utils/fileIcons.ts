@@ -57,13 +57,22 @@ const FILE_ICONS: Record<string, FileIconInfo> = {
   
   // Archives
   'zip': { icon: '📦', color: '#F59E0B', category: 'archive' },
-  'rar': { icon: '📦', color: '#F59E0B', category: 'archive' },
-  '7z': { icon: '📦', color: '#F59E0B', category: 'archive' },
-  'tar': { icon: '📦', color: '#F59E0B', category: 'archive' },
+  'rar': { icon: '📦', color: '#DC2626', category: 'archive' },
+  '7z': { icon: '📦', color: '#7C3AED', category: 'archive' },
+  'tar': { icon: '📦', color: '#059669', category: 'archive' },
   'gz': { icon: '📦', color: '#F59E0B', category: 'archive' },
   'bz2': { icon: '📦', color: '#F59E0B', category: 'archive' },
   'xz': { icon: '📦', color: '#F59E0B', category: 'archive' },
   'lz': { icon: '📦', color: '#F59E0B', category: 'archive' },
+  // Compound archive extensions
+  'tar.gz': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.bz2': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.xz': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.lz': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.zst': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.lzma': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.lzo': { icon: '📦', color: '#059669', category: 'archive' },
+  'tar.Z': { icon: '📦', color: '#059669', category: 'archive' },
   
   // Code files
   'js': { icon: '💻', color: '#F7DF1E', category: 'code' },
@@ -151,14 +160,29 @@ export function getFileIcon(fileName: string, fileType: 'Directory' | 'File' | '
 }
 
 /**
- * Extract file extension from filename
+ * Extract file extension from filename, handling compound extensions
  */
 function getFileExtension(fileName: string): string {
+  const name = fileName.toLowerCase();
+  
+  // Handle compound extensions first
+  const compoundExtensions = [
+    '.tar.gz', '.tar.bz2', '.tar.xz', '.tar.lz', '.tar.zst',
+    '.tar.lzma', '.tar.lzo', '.tar.Z'
+  ];
+  
+  for (const compound of compoundExtensions) {
+    if (name.endsWith(compound)) {
+      return compound.substring(1); // Remove the leading dot
+    }
+  }
+  
+  // Handle single extensions
   const lastDotIndex = fileName.lastIndexOf('.');
   if (lastDotIndex === -1 || lastDotIndex === 0) {
     return '';
   }
-  return fileName.substring(lastDotIndex + 1);
+  return fileName.substring(lastDotIndex + 1).toLowerCase();
 }
 
 /**
@@ -173,8 +197,14 @@ export function getFileCategory(fileName: string, fileType: 'Directory' | 'File'
  * Check if file is an archive that can be browsed
  */
 export function isArchiveFile(fileName: string): boolean {
-  const extension = getFileExtension(fileName).toLowerCase();
-  return ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(extension);
+  const extension = getFileExtension(fileName);
+  const archiveExtensions = [
+    'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'lz',
+    // Compound extensions
+    'tar.gz', 'tar.bz2', 'tar.xz', 'tar.lz', 'tar.zst',
+    'tar.lzma', 'tar.lzo', 'tar.Z'
+  ];
+  return archiveExtensions.includes(extension);
 }
 
 /**
@@ -244,6 +274,15 @@ export function getMimeTypeEstimate(fileName: string): string {
     'tar': 'application/x-tar',
     'gz': 'application/gzip',
     'rar': 'application/vnd.rar',
+    'bz2': 'application/x-bzip2',
+    'xz': 'application/x-xz',
+    // Compound archives
+    'tar.gz': 'application/gzip',
+    'tar.bz2': 'application/x-bzip2',
+    'tar.xz': 'application/x-xz',
+    'tar.lz': 'application/x-lzip',
+    'tar.zst': 'application/zstd',
+    'tar.lzma': 'application/x-lzma',
     
     // Documents
     'pdf': 'application/pdf',
@@ -289,4 +328,104 @@ export function formatFileDate(dateString: string): string {
   } else {
     return date.toLocaleDateString();
   }
+}
+
+/**
+ * Get archive format information for display
+ */
+export function getArchiveFormatInfo(fileName: string): {
+  format: string;
+  displayName: string;
+  description: string;
+  supportsCompression: boolean;
+  supportsEncryption: boolean;
+} {
+  const extension = getFileExtension(fileName);
+  
+  const formatMap: Record<string, {
+    format: string;
+    displayName: string;
+    description: string;
+    supportsCompression: boolean;
+    supportsEncryption: boolean;
+  }> = {
+    'zip': {
+      format: 'ZIP',
+      displayName: 'ZIP Archive',
+      description: 'Standard compressed archive format',
+      supportsCompression: true,
+      supportsEncryption: true
+    },
+    'rar': {
+      format: 'RAR',
+      displayName: 'RAR Archive',
+      description: 'WinRAR compressed archive',
+      supportsCompression: true,
+      supportsEncryption: true
+    },
+    '7z': {
+      format: '7Z',
+      displayName: '7-Zip Archive',
+      description: 'High compression ratio archive',
+      supportsCompression: true,
+      supportsEncryption: true
+    },
+    'tar': {
+      format: 'TAR',
+      displayName: 'TAR Archive',
+      description: 'Tape archive format (uncompressed)',
+      supportsCompression: false,
+      supportsEncryption: false
+    },
+    'tar.gz': {
+      format: 'TAR.GZ',
+      displayName: 'Gzip Compressed TAR',
+      description: 'TAR archive with gzip compression',
+      supportsCompression: true,
+      supportsEncryption: false
+    },
+    'tar.bz2': {
+      format: 'TAR.BZ2',
+      displayName: 'Bzip2 Compressed TAR',
+      description: 'TAR archive with bzip2 compression',
+      supportsCompression: true,
+      supportsEncryption: false
+    },
+    'tar.xz': {
+      format: 'TAR.XZ',
+      displayName: 'XZ Compressed TAR',
+      description: 'TAR archive with XZ compression',
+      supportsCompression: true,
+      supportsEncryption: false
+    },
+    'gz': {
+      format: 'GZIP',
+      displayName: 'Gzip Archive',
+      description: 'GNU zip compressed file',
+      supportsCompression: true,
+      supportsEncryption: false
+    },
+    'bz2': {
+      format: 'BZIP2',
+      displayName: 'Bzip2 Archive',
+      description: 'Bzip2 compressed file',
+      supportsCompression: true,
+      supportsEncryption: false
+    },
+    'xz': {
+      format: 'XZ',
+      displayName: 'XZ Archive',
+      description: 'XZ compressed file',
+      supportsCompression: true,
+      supportsEncryption: false
+    }
+  };
+  
+  return formatMap[extension] || {
+    format: 'ARCHIVE',
+    displayName: 'Archive',
+    description: 'Archive file',
+    supportsCompression: false,
+    supportsEncryption: false
+  };
 }

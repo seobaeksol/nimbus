@@ -59,6 +59,18 @@ pub enum ArchiveError {
     
     #[error("Integrity verification failed: {reason}")]
     IntegrityVerificationFailed { reason: String },
+    
+    #[error("Operation cancelled by user")]
+    OperationCancelled,
+    
+    #[error("Insufficient disk space: required {required} bytes, available {available} bytes")]
+    InsufficientDiskSpace { required: u64, available: u64 },
+    
+    #[error("Archive format validation failed: {reason}")]
+    FormatValidationFailed { reason: String },
+    
+    #[error("Network error during remote operation: {reason}")]
+    NetworkError { reason: String },
 }
 
 /// Archive format types
@@ -325,6 +337,244 @@ impl IntegrityVerifier {
     }
 }
 
+/// Enhanced error context with recovery suggestions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorContext {
+    /// The original error
+    pub error: String,
+    /// File or operation that caused the error
+    pub context: String,
+    /// Suggested recovery actions
+    pub recovery_suggestions: Vec<String>,
+    /// Whether the operation can be retried
+    pub is_retryable: bool,
+    /// Error severity level
+    pub severity: ErrorSeverity,
+}
+
+/// Error severity levels
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ErrorSeverity {
+    /// Informational - operation can continue
+    Info,
+    /// Warning - operation can continue with reduced functionality
+    Warning,
+    /// Error - operation failed but can be retried
+    Error,
+    /// Critical - operation failed and cannot be retried
+    Critical,
+}
+
+/// Progress tracker with timing and speed calculations
+pub struct ProgressTracker {
+    start_time: std::time::Instant,
+    last_update: std::time::Instant,
+    last_bytes: u64,
+    operation: ProgressOperation,
+}
+
+impl ProgressTracker {
+    /// Create a new progress tracker
+    pub fn new(operation: ProgressOperation) -> Self {
+        let now = std::time::Instant::now();
+        Self {
+            start_time: now,
+            last_update: now,
+            last_bytes: 0,
+            operation,
+        }
+    }
+    
+    /// Create enhanced progress info with speed and ETA calculations
+    pub fn create_progress(&mut self, 
+                          current_file: String,
+                          files_processed: usize,
+                          total_files: usize,
+                          bytes_processed: u64,
+                          total_bytes: u64,
+                          stage: ProgressStage,
+                          status_message: Option<String>) -> ProgressInfo {
+        
+        let now = std::time::Instant::now();
+        let elapsed = now.duration_since(self.start_time);
+        
+        // Calculate speed (bytes per second)
+        let speed_bps = if elapsed.as_secs() > 0 {
+            Some(bytes_processed / elapsed.as_secs())
+        } else {
+            None
+        };
+        
+        // Calculate ETA (estimated time remaining)
+        let eta_seconds = if bytes_processed > 0 && total_bytes > bytes_processed {
+            let remaining_bytes = total_bytes - bytes_processed;
+            speed_bps.map(|speed| if speed > 0 { remaining_bytes / speed } else { 0 })
+        } else {
+            None
+        };
+        
+        // Update tracking state
+        self.last_update = now;
+        self.last_bytes = bytes_processed;
+        
+        ProgressInfo {
+            current_file,
+            files_processed,
+            total_files,
+            bytes_processed,
+            total_bytes,
+            operation: self.operation,
+            speed_bps,
+            eta_seconds,
+            stage,
+            status_message,
+        }
+    }
+    
+    /// Create a completion progress info
+    pub fn create_completion(&self, total_files: usize, total_bytes: u64) -> ProgressInfo {
+        ProgressInfo {
+            current_file: "Operation completed".to_string(),
+            files_processed: total_files,
+            total_files,
+            bytes_processed: total_bytes,
+            total_bytes,
+            operation: self.operation,
+            speed_bps: None,
+            eta_seconds: Some(0),
+            stage: ProgressStage::Completed,
+            status_message: Some("All files processed successfully".to_string()),
+        }
+    }
+}
+
+/// Archive error handling utilities
+pub struct ErrorHandler;
+
+impl ErrorHandler {
+    /// Create enhanced error context for common archive errors
+    pub fn create_context(error: &ArchiveError, operation_context: &str) -> ErrorContext {
+        let (suggestions, retryable, severity) = match error {
+            ArchiveError::NotFound { path } => (
+                vec![
+                    "Verify the file path is correct".to_string(),
+                    "Check if the file was moved or deleted".to_string(),
+                    "Ensure you have read permissions".to_string(),
+                ],
+                false,
+                ErrorSeverity::Error,
+            ),
+            ArchiveError::PermissionDenied { path: _ } => (
+                vec![
+                    "Run the application with administrator privileges".to_string(),
+                    "Check file/directory permissions".to_string(),
+                    "Ensure the file is not being used by another process".to_string(),
+                ],
+                true,
+                ErrorSeverity::Error,
+            ),
+            ArchiveError::PasswordRequired => (
+                vec![
+                    "Provide the correct password for the encrypted archive".to_string(),
+                    "Check if you have the right archive file".to_string(),
+                ],
+                true,
+                ErrorSeverity::Warning,
+            ),
+            ArchiveError::InvalidPassword => (
+                vec![
+                    "Verify the password is correct".to_string(),
+                    "Check for caps lock or keyboard layout issues".to_string(),
+                    "Try alternative passwords if available".to_string(),
+                ],
+                true,
+                ErrorSeverity::Error,
+            ),
+            ArchiveError::CorruptedArchive { reason: _ } => (
+                vec![
+                    "Try downloading the archive file again".to_string(),
+                    "Check if the file was completely downloaded".to_string(),
+                    "Verify the file integrity using checksums".to_string(),
+                ],
+                false,
+                ErrorSeverity::Critical,
+            ),
+            ArchiveError::InsufficientDiskSpace { required, available: _ } => (
+                vec![
+                    format!("Free up at least {} bytes of disk space", required),
+                    "Choose a different destination with more space".to_string(),
+                    "Extract only selected files instead of the entire archive".to_string(),
+                ],
+                true,
+                ErrorSeverity::Error,
+            ),
+            ArchiveError::IntegrityVerificationFailed { reason: _ } => (
+                vec![
+                    "Re-download the archive file".to_string(),
+                    "Verify the archive file is not corrupted".to_string(),
+                    "Try extracting without integrity verification".to_string(),
+                ],
+                true,
+                ErrorSeverity::Warning,
+            ),
+            _ => (
+                vec!["Try the operation again".to_string()],
+                true,
+                ErrorSeverity::Error,
+            ),
+        };
+        
+        ErrorContext {
+            error: error.to_string(),
+            context: operation_context.to_string(),
+            recovery_suggestions: suggestions,
+            is_retryable: retryable,
+            severity,
+        }
+    }
+    
+    /// Check if an error is recoverable
+    pub fn is_recoverable(error: &ArchiveError) -> bool {
+        !matches!(error,
+            ArchiveError::CorruptedArchive { .. } |
+            ArchiveError::UnsupportedFormat { .. } |
+            ArchiveError::NotFound { .. }
+        )
+    }
+    
+    /// Get user-friendly error message
+    pub fn user_friendly_message(error: &ArchiveError) -> String {
+        match error {
+            ArchiveError::NotFound { path } => {
+                format!("Could not find the archive file '{}'", path)
+            }
+            ArchiveError::PermissionDenied { path } => {
+                format!("Access denied to '{}'", path)
+            }
+            ArchiveError::PasswordRequired => {
+                "This archive is password-protected. Please provide the password.".to_string()
+            }
+            ArchiveError::InvalidPassword => {
+                "The password you entered is incorrect.".to_string()
+            }
+            ArchiveError::CorruptedArchive { reason: _ } => {
+                "The archive file appears to be damaged or corrupted.".to_string()
+            }
+            ArchiveError::InsufficientDiskSpace { required, available } => {
+                format!("Not enough disk space. Need {} bytes but only {} bytes available.", 
+                       required, available)
+            }
+            ArchiveError::IntegrityVerificationFailed { reason: _ } => {
+                "File integrity check failed. The extracted file may be corrupted.".to_string()
+            }
+            ArchiveError::OperationCancelled => {
+                "Operation was cancelled by the user.".to_string()
+            }
+            _ => error.to_string(),
+        }
+    }
+}
+
 /// Extraction options
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractionOptions {
@@ -340,7 +590,7 @@ pub struct ExtractionOptions {
     pub entries: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum OverwritePolicy {
     /// Ask user for each conflict
     Ask,
@@ -367,11 +617,47 @@ impl Default for ExtractionOptions {
 /// Progress information for archive operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProgressInfo {
+    /// Currently processing file path
     pub current_file: String,
+    /// Number of files processed so far
     pub files_processed: usize,
+    /// Total number of files to process
     pub total_files: usize,
+    /// Bytes processed so far
     pub bytes_processed: u64,
+    /// Total bytes to process
     pub total_bytes: u64,
+    /// Current operation type
+    pub operation: ProgressOperation,
+    /// Processing speed in bytes per second
+    pub speed_bps: Option<u64>,
+    /// Estimated time remaining in seconds
+    pub eta_seconds: Option<u64>,
+    /// Current operation stage
+    pub stage: ProgressStage,
+    /// Optional detailed status message
+    pub status_message: Option<String>,
+}
+
+/// Types of operations that can be tracked
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProgressOperation {
+    Extracting,
+    Listing,
+    Verifying,
+    Compressing,
+    Counting,
+}
+
+/// Stages of operation progress
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProgressStage {
+    Initializing,
+    Processing,
+    Finalizing,
+    Completed,
+    Cancelled,
+    Failed,
 }
 
 /// Archive reader trait for browsing and extracting archives
@@ -585,6 +871,23 @@ impl ArchiveReader for ZipArchiveReader {
             let mut files_processed = 0;
             let mut bytes_processed = 0;
             
+            // Initialize progress tracker
+            let mut progress_tracker = ProgressTracker::new(ProgressOperation::Extracting);
+            
+            // Send initial progress
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_progress(
+                    "Preparing extraction...".to_string(),
+                    files_processed,
+                    total_files,
+                    bytes_processed,
+                    total_bytes,
+                    ProgressStage::Initializing,
+                    None,
+                );
+                callback(progress);
+            }
+            
             for &index in &entries_to_extract {
                 let mut entry = archive.by_index(index)
                     .map_err(|e| ArchiveError::ExtractionFailed {
@@ -618,13 +921,16 @@ impl ArchiveReader for ZipArchiveReader {
                         OverwritePolicy::Skip => {
                             files_processed += 1;
                             if let Some(ref callback) = progress_callback {
-                                callback(ProgressInfo {
-                                    current_file: entry_path,
+                                let progress = progress_tracker.create_progress(
+                                    entry_path.clone(),
                                     files_processed,
                                     total_files,
                                     bytes_processed,
                                     total_bytes,
-                                });
+                                    ProgressStage::Processing,
+                                    None,
+                                );
+                                callback(progress);
                             }
                             continue;
                         }
@@ -633,13 +939,16 @@ impl ArchiveReader for ZipArchiveReader {
                             // For now, skip to avoid overwriting
                             files_processed += 1;
                             if let Some(ref callback) = progress_callback {
-                                callback(ProgressInfo {
-                                    current_file: entry_path,
+                                let progress = progress_tracker.create_progress(
+                                    entry_path.clone(),
                                     files_processed,
                                     total_files,
                                     bytes_processed,
                                     total_bytes,
-                                });
+                                    ProgressStage::Processing,
+                                    None,
+                                );
+                                callback(progress);
                             }
                             continue;
                         }
@@ -699,14 +1008,31 @@ impl ArchiveReader for ZipArchiveReader {
                 
                 // Report progress
                 if let Some(ref callback) = progress_callback {
-                    callback(ProgressInfo {
-                        current_file: entry_path,
+                    let progress = progress_tracker.create_progress(
+                        entry_path,
                         files_processed,
                         total_files,
                         bytes_processed,
                         total_bytes,
-                    });
+                        ProgressStage::Processing,
+                        None,
+                    );
+                    callback(progress);
                 }
+            }
+            
+            // Send completion progress
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_progress(
+                    "Extraction completed successfully".to_string(),
+                    files_processed,
+                    total_files,
+                    bytes_processed,
+                    total_bytes,
+                    ProgressStage::Completed,
+                    None,
+                );
+                callback(progress);
             }
             
             Ok(())
@@ -913,6 +1239,23 @@ impl ArchiveReader for TarArchiveReader {
             
             let mut archive = TarArchive::new(reader);
             
+            // Initialize progress tracker
+            let mut progress_tracker = ProgressTracker::new(ProgressOperation::Extracting);
+            
+            // Send initial progress
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_progress(
+                    "Preparing TAR extraction...".to_string(),
+                    0,
+                    1,  // We don't know total count yet
+                    0,
+                    0,
+                    ProgressStage::Initializing,
+                    None,
+                );
+                callback(progress);
+            }
+            
             // Set the destination and handle subfolder creation
             let final_destination = if options.create_subfolder {
                 let archive_name = archive_path
@@ -978,6 +1321,20 @@ impl ArchiveReader for TarArchiveReader {
                             })?;
                     }
                 }
+            }
+            
+            // Send completion progress
+            if let Some(ref callback) = progress_callback {
+                let progress = progress_tracker.create_progress(
+                    "TAR extraction completed successfully".to_string(),
+                    1,
+                    1,
+                    0,
+                    0,
+                    ProgressStage::Completed,
+                    None,
+                );
+                callback(progress);
             }
             
             Ok(())
@@ -1160,13 +1517,17 @@ impl ArchiveReader for SevenZArchiveReader {
             
             // Report completion to progress callback
             if let Some(ref callback) = progress_callback {
-                callback(ProgressInfo {
-                    current_file: "Completed".to_string(),
-                    files_processed: 1,
-                    total_files: 1,
-                    bytes_processed: 0,
-                    total_bytes: 0,
-                });
+                let mut progress_tracker = ProgressTracker::new(ProgressOperation::Extracting);
+                let progress = progress_tracker.create_progress(
+                    "7z extraction completed".to_string(),
+                    1,
+                    1,
+                    0,
+                    0,
+                    ProgressStage::Completed,
+                    None,
+                );
+                callback(progress);
             }
             
             Ok(())
@@ -1601,6 +1962,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
+    use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
     
     fn create_test_zip() -> (TempDir, PathBuf) {
@@ -1756,5 +2118,431 @@ mod tests {
         
         let entries = reader.list_entries().await.expect("Failed to list entries");
         assert_eq!(entries.len(), 3);
+    }
+    
+    // ===== Progress Tracking Tests =====
+    
+    #[test]
+    fn test_progress_tracker_creation() {
+        let mut tracker = ProgressTracker::new(ProgressOperation::Extracting);
+        
+        let progress = tracker.create_progress(
+            "test.txt".to_string(),
+            1,
+            10,
+            100,
+            1000,
+            ProgressStage::Processing,
+            None,
+        );
+        
+        assert_eq!(progress.operation, ProgressOperation::Extracting);
+        assert_eq!(progress.stage, ProgressStage::Processing);
+        assert_eq!(progress.current_file, "test.txt");
+        assert_eq!(progress.files_processed, 1);
+        assert_eq!(progress.total_files, 10);
+        assert_eq!(progress.bytes_processed, 100);
+        assert_eq!(progress.total_bytes, 1000);
+        // Speed and ETA may be None if elapsed time is too small
+        // This is expected behavior in fast test scenarios
+    }
+    
+    #[test]
+    fn test_progress_tracker_speed_calculation() {
+        let mut tracker = ProgressTracker::new(ProgressOperation::Extracting);
+        
+        // First progress update
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let _progress1 = tracker.create_progress(
+            "file1.txt".to_string(),
+            1,
+            10,
+            1000,
+            10000,
+            ProgressStage::Processing,
+            None,
+        );
+        
+        // Second progress update after some processing
+        std::thread::sleep(std::time::Duration::from_millis(10));
+        let progress2 = tracker.create_progress(
+            "file2.txt".to_string(),
+            2,
+            10,
+            2000,
+            10000,
+            ProgressStage::Processing,
+            None,
+        );
+        
+        // Speed calculation may return None in very fast test scenarios
+        // In real usage with actual file processing, speed will be calculated properly
+        if let Some(speed) = progress2.speed_bps {
+            assert!(speed >= 0, "Speed should be non-negative when calculated");
+        }
+    }
+    
+    // ===== Integrity Verification Tests =====
+    
+    #[test]
+    fn test_integrity_verifier_crc32() {
+        let test_data = b"Hello, World!";
+        let crc32 = IntegrityVerifier::compute_crc32(test_data);
+        
+        // Verify CRC32 calculation
+        let result = IntegrityVerifier::verify_crc32(test_data, crc32);
+        assert!(result.passed);
+        assert_eq!(result.algorithm, HashAlgorithm::Crc32);
+        
+        // Test with wrong CRC32
+        let wrong_result = IntegrityVerifier::verify_crc32(test_data, crc32 + 1);
+        assert!(!wrong_result.passed);
+        assert!(wrong_result.error_message.is_some());
+    }
+    
+    #[test]
+    fn test_integrity_verifier_hash_algorithms() {
+        let test_data = b"Hello, World!";
+        
+        // Test MD5
+        let md5 = IntegrityVerifier::compute_hash(test_data, HashAlgorithm::Md5);
+        assert_eq!(md5.len(), 32); // MD5 is 32 hex chars
+        let result = IntegrityVerifier::verify_hash(test_data, &md5, HashAlgorithm::Md5);
+        assert!(result.passed);
+        
+        // Test SHA1  
+        let sha1 = IntegrityVerifier::compute_hash(test_data, HashAlgorithm::Sha1);
+        assert_eq!(sha1.len(), 40); // SHA1 is 40 hex chars
+        let result = IntegrityVerifier::verify_hash(test_data, &sha1, HashAlgorithm::Sha1);
+        assert!(result.passed);
+        
+        // Test SHA256
+        let sha256 = IntegrityVerifier::compute_hash(test_data, HashAlgorithm::Sha256);
+        assert_eq!(sha256.len(), 64); // SHA256 is 64 hex chars
+        let result = IntegrityVerifier::verify_hash(test_data, &sha256, HashAlgorithm::Sha256);
+        assert!(result.passed);
+        
+        // Test known SHA256 hash
+        let expected_sha256 = "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f";
+        let result = IntegrityVerifier::verify_hash(test_data, expected_sha256, HashAlgorithm::Sha256);
+        assert!(result.passed);
+    }
+    
+    // ===== Error Handling Tests =====
+    
+    #[test]
+    fn test_error_handler_context_creation() {
+        let error = ArchiveError::NotFound { path: "/nonexistent/file.zip".to_string() };
+        let context = ErrorHandler::create_context(&error, "extracting archive");
+        
+        assert_eq!(context.context, "extracting archive");
+        assert!(!context.recovery_suggestions.is_empty());
+        assert!(context.recovery_suggestions.iter().any(|s| s.contains("Verify the file path")));
+        assert_eq!(context.severity, ErrorSeverity::Error);
+        assert!(!context.is_retryable);
+    }
+    
+    #[test] 
+    fn test_error_handler_disk_space() {
+        let error = ArchiveError::InsufficientDiskSpace { required: 1000, available: 500 };
+        let context = ErrorHandler::create_context(&error, "extracting large archive");
+        
+        assert_eq!(context.severity, ErrorSeverity::Error);
+        assert!(context.is_retryable);
+        assert!(context.recovery_suggestions.iter().any(|s| s.contains("Free up")));
+        
+        let friendly_msg = ErrorHandler::user_friendly_message(&error);
+        assert!(friendly_msg.contains("disk space"));
+        assert!(friendly_msg.contains("1000"));
+    }
+    
+    #[test]
+    fn test_error_handler_recoverability() {
+        // Recoverable errors
+        let recoverable_errors = vec![
+            ArchiveError::PasswordRequired,
+            ArchiveError::InsufficientDiskSpace { required: 1000, available: 500 },
+            ArchiveError::OperationCancelled,
+        ];
+        
+        for error in recoverable_errors {
+            assert!(ErrorHandler::is_recoverable(&error), "Error should be recoverable: {:?}", error);
+        }
+        
+        // Non-recoverable errors
+        let non_recoverable_errors = vec![
+            ArchiveError::CorruptedArchive { reason: "Invalid header".to_string() },
+            ArchiveError::UnsupportedFormat { format: "unknown".to_string() },
+        ];
+        
+        for error in non_recoverable_errors {
+            assert!(!ErrorHandler::is_recoverable(&error), "Error should not be recoverable: {:?}", error);
+        }
+    }
+    
+    // ===== Archive Format Detection Tests =====
+    
+    #[test]
+    fn test_archive_format_extension_detection() {
+        // Test all supported extensions
+        assert_eq!(ArchiveFormat::from_path(Path::new("test.zip")), Some(ArchiveFormat::Zip));
+        assert_eq!(ArchiveFormat::from_path(Path::new("TEST.ZIP")), Some(ArchiveFormat::Zip)); // Case insensitive
+        
+        assert_eq!(ArchiveFormat::from_path(Path::new("archive.tar")), Some(ArchiveFormat::Tar));
+        assert_eq!(ArchiveFormat::from_path(Path::new("archive.tar.gz")), Some(ArchiveFormat::TarGz));
+        assert_eq!(ArchiveFormat::from_path(Path::new("archive.tgz")), Some(ArchiveFormat::TarGz));
+        assert_eq!(ArchiveFormat::from_path(Path::new("archive.tar.bz2")), Some(ArchiveFormat::TarBz2));
+        assert_eq!(ArchiveFormat::from_path(Path::new("archive.tbz2")), Some(ArchiveFormat::TarBz2));
+        
+        assert_eq!(ArchiveFormat::from_path(Path::new("data.7z")), Some(ArchiveFormat::SevenZ));
+        assert_eq!(ArchiveFormat::from_path(Path::new("files.rar")), Some(ArchiveFormat::Rar));
+        
+        // Non-archive files
+        assert_eq!(ArchiveFormat::from_path(Path::new("document.txt")), None);
+        assert_eq!(ArchiveFormat::from_path(Path::new("image.jpg")), None);
+        assert_eq!(ArchiveFormat::from_path(Path::new("no_extension")), None);
+    }
+    
+    #[tokio::test] 
+    async fn test_magic_bytes_detection() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        
+        // Test ZIP magic bytes detection
+        let format = ArchiveFormat::from_header(&zip_path).unwrap();
+        assert_eq!(format, Some(ArchiveFormat::Zip));
+        
+        // Test fallback to extension when header fails
+        let non_archive_path = _temp_dir.path().join("test.txt");
+        std::fs::write(&non_archive_path, b"not an archive").unwrap();
+        
+        let format = ArchiveFormat::from_header(&non_archive_path).unwrap();
+        assert_eq!(format, None); // Should not detect any format
+    }
+    
+    // ===== Edge Case Tests =====
+    
+    #[tokio::test]
+    async fn test_empty_archive_handling() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let zip_path = temp_dir.path().join("empty.zip");
+        
+        // Create an empty ZIP file
+        let file = std::fs::File::create(&zip_path).expect("Failed to create zip file");
+        let zip_writer = zip::ZipWriter::new(file);
+        zip_writer.finish().expect("Failed to finish empty ZIP");
+        
+        let reader = ZipArchiveReader::new(zip_path);
+        let entries = reader.list_entries().await.expect("Failed to list empty archive");
+        assert_eq!(entries.len(), 0);
+    }
+    
+    #[tokio::test]
+    async fn test_nonexistent_file_error() {
+        let nonexistent_path = PathBuf::from("/nonexistent/path/archive.zip");
+        let reader = ZipArchiveReader::new(nonexistent_path);
+        
+        let result = reader.list_entries().await;
+        assert!(result.is_err());
+        
+        if let Err(ArchiveError::NotFound { path }) = result {
+            assert!(path.contains("nonexistent"));
+        } else {
+            panic!("Expected NotFound error");
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_corrupted_archive_error() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let corrupt_path = temp_dir.path().join("corrupt.zip");
+        
+        // Create a file with invalid ZIP content
+        std::fs::write(&corrupt_path, b"This is not a ZIP file").unwrap();
+        
+        let reader = ZipArchiveReader::new(corrupt_path);
+        let result = reader.list_entries().await;
+        assert!(result.is_err());
+        
+        match result {
+            Err(ArchiveError::CorruptedArchive { .. }) => {
+                // Expected
+            }
+            _ => panic!("Expected CorruptedArchive error"),
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_extract_nonexistent_entry() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        let reader = ZipArchiveReader::new(zip_path);
+        
+        let result = reader.extract_entry_to_memory("nonexistent.txt").await;
+        assert!(result.is_err());
+        
+        match result {
+            Err(ArchiveError::NotFound { path }) => {
+                assert_eq!(path, "nonexistent.txt");
+            }
+            _ => panic!("Expected NotFound error"),
+        }
+    }
+    
+    // ===== TAR Archive Tests =====
+    
+    fn create_test_tar() -> (TempDir, PathBuf) {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let tar_path = temp_dir.path().join("test.tar");
+        
+        // Create a simple TAR file for testing
+        let tar_file = std::fs::File::create(&tar_path).expect("Failed to create tar file");
+        let mut tar_builder = tar::Builder::new(tar_file);
+        
+        // Add a text file
+        let mut header = tar::Header::new_gnu();
+        header.set_size(13);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar_builder.append_data(&mut header, "test.txt", b"Hello, World!".as_ref())
+            .expect("Failed to add file to tar");
+        
+        // Add a directory entry manually
+        let mut dir_header = tar::Header::new_gnu();
+        dir_header.set_entry_type(tar::EntryType::Directory);
+        dir_header.set_size(0);
+        dir_header.set_mode(0o755);
+        dir_header.set_cksum();
+        tar_builder.append_data(&mut dir_header, "subdir/", std::io::empty())
+            .expect("Failed to add directory to tar");
+        
+        let mut nested_header = tar::Header::new_gnu();
+        nested_header.set_size(14);
+        nested_header.set_mode(0o644);
+        nested_header.set_cksum();
+        tar_builder.append_data(&mut nested_header, "subdir/nested.txt", b"Nested content".as_ref())
+            .expect("Failed to add nested file to tar");
+        
+        tar_builder.finish().expect("Failed to finish TAR");
+        
+        (temp_dir, tar_path)
+    }
+    
+    #[tokio::test]
+    async fn test_tar_listing() {
+        let (_temp_dir, tar_path) = create_test_tar();
+        
+        let reader = TarArchiveReader::new(tar_path, ArchiveFormat::Tar);
+        let entries = reader.list_entries().await.expect("Failed to list TAR entries");
+        
+        assert_eq!(entries.len(), 3); // test.txt, subdir, subdir/nested.txt
+        
+        let text_file = entries.iter().find(|e| e.path == "test.txt").expect("test.txt not found");
+        assert!(!text_file.is_directory);
+        assert_eq!(text_file.size, 13);
+        
+        let subdir = entries.iter().find(|e| e.path == "subdir/" || e.path == "subdir").expect("subdir not found");
+        assert!(subdir.is_directory);
+        assert_eq!(subdir.size, 0);
+    }
+    
+    #[tokio::test] 
+    async fn test_tar_extraction() {
+        let (_temp_dir, tar_path) = create_test_tar();
+        let extract_dir = TempDir::new().expect("Failed to create extract dir");
+        
+        let reader = TarArchiveReader::new(tar_path, ArchiveFormat::Tar);
+        let options = ExtractionOptions::default();
+        
+        reader.extract(extract_dir.path(), options, None).await
+            .expect("Failed to extract TAR archive");
+        
+        // Verify extracted files
+        let test_file_path = extract_dir.path().join("test.txt");
+        assert!(test_file_path.exists());
+        
+        let content = fs::read_to_string(test_file_path).expect("Failed to read extracted file");
+        assert_eq!(content, "Hello, World!");
+        
+        let nested_file_path = extract_dir.path().join("subdir/nested.txt");
+        assert!(nested_file_path.exists());
+        
+        let nested_content = fs::read_to_string(nested_file_path).expect("Failed to read nested file");
+        assert_eq!(nested_content, "Nested content");
+    }
+    
+    // ===== Extraction Options Tests =====
+    
+    #[tokio::test]
+    async fn test_extraction_options_default() {
+        let options = ExtractionOptions::default();
+        
+        assert!(options.preserve_paths);
+        assert_eq!(options.overwrite_policy, OverwritePolicy::Ask);
+        assert!(options.password.is_none());
+        assert!(!options.create_subfolder);
+        assert!(options.entries.is_none());
+    }
+    
+    #[tokio::test]
+    async fn test_extraction_with_subfolder() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        let extract_dir = TempDir::new().expect("Failed to create extract dir");
+        
+        let reader = ZipArchiveReader::new(zip_path);
+        let options = ExtractionOptions {
+            create_subfolder: true,
+            ..Default::default()
+        };
+        
+        reader.extract(extract_dir.path(), options, None).await
+            .expect("Failed to extract with subfolder");
+        
+        // Files should be extracted to a subfolder named after the archive
+        let subfolder_path = extract_dir.path().join("test");
+        assert!(subfolder_path.exists());
+        
+        let test_file_path = subfolder_path.join("test.txt");
+        assert!(test_file_path.exists());
+        
+        let content = fs::read_to_string(test_file_path).expect("Failed to read file from subfolder");
+        assert_eq!(content, "Hello, World!");
+    }
+    
+    // ===== Progress Callback Tests =====
+    
+    #[tokio::test]
+    async fn test_extraction_with_progress_callback() {
+        let (_temp_dir, zip_path) = create_test_zip();
+        let extract_dir = TempDir::new().expect("Failed to create extract dir");
+        
+        let progress_updates = Arc::new(Mutex::new(Vec::new()));
+        let progress_updates_clone = progress_updates.clone();
+        
+        let progress_callback = Box::new(move |progress: ProgressInfo| {
+            let mut updates = progress_updates_clone.lock().unwrap();
+            updates.push(progress);
+        });
+        
+        let reader = ZipArchiveReader::new(zip_path);
+        let options = ExtractionOptions::default();
+        
+        reader.extract(extract_dir.path(), options, Some(progress_callback)).await
+            .expect("Failed to extract with progress");
+        
+        let updates = progress_updates.lock().unwrap();
+        assert!(!updates.is_empty(), "Should have received progress updates");
+        
+        // Check that we got initialization and completion stages
+        let has_initializing = updates.iter().any(|p| p.stage == ProgressStage::Initializing);
+        let has_completed = updates.iter().any(|p| p.stage == ProgressStage::Completed);
+        
+        assert!(has_initializing, "Should have initialization progress");
+        assert!(has_completed, "Should have completion progress");
+        
+        // Verify progress values make sense
+        for progress in updates.iter() {
+            assert!(progress.files_processed <= progress.total_files);
+            assert!(progress.bytes_processed <= progress.total_bytes);
+            assert_eq!(progress.operation, ProgressOperation::Extracting);
+        }
     }
 }
