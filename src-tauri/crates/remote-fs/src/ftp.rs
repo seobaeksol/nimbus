@@ -170,14 +170,19 @@ impl RemoteFileSystem for FtpClient {
                 message: "Password is required for FTP".to_string(),
             })?;
 
-        // Create FTP connection
-        let mut ftp = FtpStream::connect(&format!("{}:{}", host, port))
-            .map_err(|e| RemoteError::ConnectionFailed {
-                message: format!("Failed to connect to FTP server: {}", e),
-            })?;
-
-        // Note: FTPS support would require additional configuration
-        // For now, we'll implement basic FTP only
+        // Create FTP connection (FTPS support requires additional features)
+        let mut ftp = if self.config.protocol == crate::RemoteProtocol::Ftps {
+            // FTPS support would require enabling TLS features in suppaftp
+            return Err(RemoteError::ProtocolError {
+                message: "FTPS support not yet implemented in current suppaftp version".to_string(),
+            });
+        } else {
+            // Regular FTP
+            FtpStream::connect(&format!("{}:{}", host, port))
+                .map_err(|e| RemoteError::ConnectionFailed {
+                    message: format!("Failed to connect to FTP server: {}", e),
+                })?
+        };
 
         // Login
         ftp.login(username, password)
@@ -185,7 +190,14 @@ impl RemoteFileSystem for FtpClient {
                 message: format!("FTP login failed: {}", e),
             })?;
 
-        // Set transfer mode (simplified)
+        // Set passive/active mode based on configuration
+        if self.config.use_passive_ftp {
+            ftp.set_mode(suppaftp::Mode::Passive);
+        } else {
+            ftp.set_mode(suppaftp::Mode::Active);
+        }
+        
+        // Set transfer mode to binary for reliable transfers
         ftp.transfer_type(suppaftp::types::FileType::Binary)
             .map_err(|e| RemoteError::ProtocolError {
                 message: format!("Failed to set transfer type: {}", e),
@@ -252,7 +264,7 @@ impl RemoteFileSystem for FtpClient {
         let connection = self.get_connection()?;
 
         // Get file size
-        let size = connection.size(path)
+        let _size = connection.size(path)
             .map_err(|e| RemoteError::ProtocolError {
                 message: format!("Failed to get file size for {}: {}", path, e),
             })?;
@@ -290,7 +302,7 @@ impl RemoteFileSystem for FtpClient {
             let parent = crate::utils::get_parent_dir(path);
             if parent != "/" && parent != path {
                 // Release the connection borrow before recursive call
-                drop(connection);
+                // Connection will be dropped automatically
                 self.create_directory(&parent, true).await?;
                 // Re-acquire connection
                 let connection = self.get_connection()?;
@@ -314,7 +326,7 @@ impl RemoteFileSystem for FtpClient {
 
         if recursive {
             // List directory contents and remove them first
-            drop(connection); // Release connection borrow
+            // Connection will be dropped automatically
             if let Ok(files) = self.list_directory(path).await {
                 for file in files {
                     let file_path = crate::utils::join_path(path, &file.name);
@@ -400,10 +412,10 @@ impl RemoteFileSystem for FtpClient {
         progress: Option<ProgressCallback>,
     ) -> Result<(), RemoteError> {
         self.ensure_connected().await?;
-        let connection = self.get_connection()?;
+        let _connection = self.get_connection()?;
 
         // Check if remote file exists and handle overwrite
-        drop(connection); // Release connection borrow
+        // Connection will be dropped automatically
         if !options.overwrite && self.exists(remote_path).await? {
             return Err(RemoteError::Other {
                 message: "Remote file already exists and overwrite is disabled".to_string(),
