@@ -5,7 +5,7 @@
 
 use crate::{
     RemoteConfig, RemoteError, RemoteFileSystem, RemoteFileInfo, RemoteFileType, 
-    RemotePermissions, TransferOptions, ProgressCallback, ConnectionStatus, DiskSpace
+    TransferOptions, ProgressCallback, ConnectionStatus, DiskSpace
 };
 use async_trait::async_trait;
 use reqwest::{Client, Method, header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_LENGTH}};
@@ -13,6 +13,7 @@ use std::path::Path;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use xml::reader::{EventReader, XmlEvent};
+use base64::{Engine as _, engine::general_purpose};
 
 /// WebDAV client implementation
 pub struct WebDavClient {
@@ -50,7 +51,7 @@ impl WebDavClient {
         // Create HTTP client with basic auth
         let mut headers = HeaderMap::new();
         if let Some(password) = &config.password {
-            let auth = base64::encode(format!("{}:{}", config.username, password));
+            let auth = general_purpose::STANDARD.encode(format!("{}:{}", config.username, password));
             headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Basic {}", auth))
                 .map_err(|e| RemoteError::Other {
                     message: format!("Failed to create auth header: {}", e),
