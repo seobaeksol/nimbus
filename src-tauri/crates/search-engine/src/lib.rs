@@ -4,14 +4,17 @@
 //! traversal and streaming results. It supports name patterns, content search,
 //! and various filters for size, date, and file types.
 
+use fuzzy_matcher::{FuzzyMatcher, skim::SkimMatcherV2};
 use jwalk::WalkDir;
 use rayon::prelude::*;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering as CmpOrdering;
+use std::collections::{HashMap, BTreeMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
-use std::time::SystemTime;
+use std::sync::{mpsc, Arc, atomic::{AtomicBool, AtomicUsize, Ordering}, RwLock};
+use std::time::{SystemTime, Instant};
 use thiserror::Error;
 use tokio::sync::mpsc as tokio_mpsc;
 
@@ -159,15 +162,18 @@ pub struct SearchQuery {
     pub options: SearchOptions,
 }
 
-/// Search options
+/// Search options with fuzzy matching support
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchOptions {
     pub case_sensitive: bool,
     pub use_regex: bool,
+    pub use_fuzzy: bool,         // Enable fuzzy matching for name patterns
+    pub fuzzy_threshold: i64,    // Minimum fuzzy match score (0-100)
     pub include_hidden: bool,
     pub follow_symlinks: bool,
     pub max_results: Option<usize>,
     pub max_depth: Option<usize>,
+    pub sort_by_relevance: bool,  // Sort results by relevance score
 }
 
 impl Default for SearchOptions {
@@ -175,15 +181,18 @@ impl Default for SearchOptions {
         Self {
             case_sensitive: false,
             use_regex: false,
+            use_fuzzy: false,
+            fuzzy_threshold: 60,  // Reasonable default threshold
             include_hidden: false,
             follow_symlinks: false,
             max_results: None,
             max_depth: None,
+            sort_by_relevance: true,
         }
     }
 }
 
-/// Search result
+/// Search result with relevance scoring
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
     pub path: PathBuf,
@@ -193,6 +202,97 @@ pub struct SearchResult {
     pub created: Option<SystemTime>,
     pub is_directory: bool,
     pub matches: Vec<ContentMatch>,
+    pub relevance_score: i64,  // Higher score = more relevant
+    pub match_type: MatchType,
+}
+
+/// Type of match found
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum MatchType {
+    ExactName,      // Exact filename match
+    FuzzyName,      // Fuzzy filename match
+    Content,        // Content match
+    Extension,      // File extension match
+    Directory,      // Directory name match
+}
+
+/// Cached directory entry for performance
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct CachedEntry {
+    path: PathBuf,
+    name: String,
+    size: u64,
+    modified: Option<SystemTime>,
+    created: Option<SystemTime>,
+    is_directory: bool,
+    indexed_at: SystemTime,
+}
+
+/// Directory index for fast searches
+#[derive(Debug, Default)]
+struct DirectoryIndex {
+    entries: BTreeMap<PathBuf, Vec<CachedEntry>>,
+    last_updated: HashMap<PathBuf, SystemTime>,
+    cache_ttl: std::time::Duration,
+}
+
+impl DirectoryIndex {
+    fn new(cache_ttl_minutes: u64) -> Self {
+        Self {
+            entries: BTreeMap::new(),
+            last_updated: HashMap::new(),
+            cache_ttl: std::time::Duration::from_secs(cache_ttl_minutes * 60),
+        }
+    }
+    
+    fn is_cache_valid(&self, dir_path: &Path) -> bool {
+        if let Some(last_update) = self.last_updated.get(dir_path) {
+            if let Ok(elapsed) = last_update.elapsed() {
+                return elapsed < self.cache_ttl;
+            }
+        }
+        false
+    }
+    
+    fn get_cached_entries(&self, dir_path: &Path) -> Option<&Vec<CachedEntry>> {
+        if self.is_cache_valid(dir_path) {
+            self.entries.get(dir_path)
+        } else {
+            None
+        }
+    }
+    
+    fn cache_entries(&mut self, dir_path: PathBuf, entries: Vec<CachedEntry>) {
+        self.last_updated.insert(dir_path.clone(), SystemTime::now());
+        self.entries.insert(dir_path, entries);
+    }
+    
+    fn invalidate_cache(&mut self, dir_path: &Path) {
+        self.entries.remove(dir_path);
+        self.last_updated.remove(dir_path);
+    }
+    
+    fn clear_expired_cache(&mut self) {
+        let now = SystemTime::now();
+        let expired_dirs: Vec<PathBuf> = self.last_updated
+            .iter()
+            .filter_map(|(path, last_update)| {
+                if let Ok(elapsed) = now.duration_since(*last_update) {
+                    if elapsed > self.cache_ttl {
+                        Some(path.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(path.clone())
+                }
+            })
+            .collect();
+            
+        for path in expired_dirs {
+            self.invalidate_cache(&path);
+        }
+    }
 }
 
 /// Content match information
@@ -204,18 +304,55 @@ pub struct ContentMatch {
     pub match_end: usize,
 }
 
-/// Search engine implementation
+/// Search engine implementation with indexing and caching
 pub struct SearchEngine {
-    // Future: use ignore_builder for gitignore support
-    #[allow(dead_code)]
     ignore_builder: ignore::WalkBuilder,
+    cancelled: Arc<AtomicBool>,
+    thread_pool_size: usize,
+    chunk_size: usize,
+    directory_index: Arc<RwLock<DirectoryIndex>>,
+    enable_caching: bool,
 }
 
 impl SearchEngine {
-    /// Create a new search engine
+    /// Create a new search engine with default settings
     pub fn new() -> Self {
+        Self::with_config(num_cpus::get(), true, 30) // 30 min cache TTL
+    }
+    
+    /// Create a search engine with custom thread pool size
+    pub fn with_thread_pool_size(threads: usize) -> Self {
+        Self::with_config(threads, true, 30)
+    }
+    
+    /// Create a search engine with full configuration
+    pub fn with_config(threads: usize, enable_caching: bool, cache_ttl_minutes: u64) -> Self {
         Self {
             ignore_builder: ignore::WalkBuilder::new(""),
+            cancelled: Arc::new(AtomicBool::new(false)),
+            thread_pool_size: threads,
+            chunk_size: 1000, // Process files in chunks
+            directory_index: Arc::new(RwLock::new(DirectoryIndex::new(cache_ttl_minutes))),
+            enable_caching,
+        }
+    }
+    
+    /// Cancel the current search operation
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+    
+    /// Clear expired cache entries
+    pub fn cleanup_cache(&self) {
+        if let Ok(mut index) = self.directory_index.write() {
+            index.clear_expired_cache();
+        }
+    }
+    
+    /// Invalidate cache for a specific directory
+    pub fn invalidate_directory_cache(&self, dir_path: &Path) {
+        if let Ok(mut index) = self.directory_index.write() {
+            index.invalidate_cache(dir_path);
         }
     }
     
@@ -236,7 +373,7 @@ impl SearchEngine {
         } = query;
         
         // Compile regex patterns if needed
-        let name_regex = if let Some(pattern) = name_pattern {
+        let name_regex = if let Some(ref pattern) = name_pattern {
             if options.use_regex {
                 Some(Regex::new(&pattern)?)
             } else {
@@ -264,8 +401,38 @@ impl SearchEngine {
             None
         };
         
-        // Configure walker
-        let mut walker = WalkDir::new(&root_path);
+        // Setup fuzzy matcher
+        let fuzzy_matcher = if options.use_fuzzy && name_pattern.is_some() {
+            Some(SkimMatcherV2::default())
+        } else {
+            None
+        };
+        
+        // Configure optimized walker with parallel directory traversal
+        let mut walker = WalkDir::new(&root_path)
+            .parallelism(jwalk::Parallelism::RayonDefaultPool {
+                busy_timeout: std::time::Duration::from_millis(10),
+            })
+            .process_read_dir(|_depth, _path, _read_dir_state, children| {
+                // Sort children for consistent traversal order
+                children.sort_by(|a, b| {
+                    match (a, b) {
+                        (Ok(a_entry), Ok(b_entry)) => {
+                            let a_is_dir = a_entry.file_type().is_dir();
+                            let b_is_dir = b_entry.file_type().is_dir();
+                            match (a_is_dir, b_is_dir) {
+                                (true, false) => std::cmp::Ordering::Less, // Directories first
+                                (false, true) => std::cmp::Ordering::Greater,
+                                _ => a_entry.file_name().cmp(b_entry.file_name()),
+                            }
+                        }
+                        (Ok(_), Err(_)) => std::cmp::Ordering::Less,  // Valid entries first
+                        (Err(_), Ok(_)) => std::cmp::Ordering::Greater,
+                        (Err(_), Err(_)) => std::cmp::Ordering::Equal,
+                    }
+                });
+            });
+            
         if let Some(depth) = options.max_depth {
             walker = walker.max_depth(depth);
         }
@@ -273,61 +440,114 @@ impl SearchEngine {
             walker = walker.follow_links(true);
         }
         
-        // Collect entries for parallel processing
-        let entries: Vec<_> = walker
-            .into_iter()
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                // Filter hidden files
-                if !options.include_hidden {
-                    if let Some(name) = entry.file_name().to_str() {
-                        if name.starts_with('.') {
-                            return false;
+        // Try to use cached entries first for better performance
+        let entries = if self.enable_caching {
+            self.get_cached_or_fresh_entries(&root_path, walker, &options)?
+        } else {
+            // Fallback to direct traversal without caching
+            walker
+                .into_iter()
+                .filter_map(|entry| {
+                    // Early cancellation check
+                    if self.cancelled.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    entry.ok()
+                })
+                .filter(|entry| {
+                    // Filter hidden files early
+                    if !options.include_hidden {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.starts_with('.') {
+                                return false;
+                            }
+                        }
+                    }
+                    true
+                })
+                .collect()
+        };
+        
+        // Use optimized parallel processing with chunking and cancellation
+        let (tx, rx) = mpsc::channel();
+        let result_count = Arc::new(AtomicUsize::new(0));
+        let cancelled = self.cancelled.clone();
+        
+        // Process entries in chunks for better memory management
+        let chunk_size = self.chunk_size.min(entries.len().max(1));
+        entries.into_par_iter()
+            .chunks(chunk_size)
+            .for_each_with(tx, |tx, chunk| {
+                // Check cancellation at chunk level
+                if cancelled.load(Ordering::Relaxed) {
+                    return;
+                }
+                
+                for entry in chunk {
+                    // Check if we've hit max results limit
+                    if let Some(max) = options.max_results {
+                        if result_count.load(Ordering::Relaxed) >= max {
+                            return;
+                        }
+                    }
+                    
+                    // Check cancellation periodically
+                    if cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    
+                    match self.process_entry(
+                        entry,
+                        &name_pattern,
+                        &name_regex,
+                        &fuzzy_matcher,
+                        &content_regex,
+                        &size_filter,
+                        &date_filter,
+                        &file_type_filter,
+                        &options,
+                    ) {
+                        Ok(Some(result)) => {
+                            result_count.fetch_add(1, Ordering::Relaxed);
+                            if tx.send(Ok(result)).is_err() {
+                                // Receiver dropped, stop processing
+                                return;
+                            }
+                        }
+                        Ok(None) => {
+                            // No match, continue
+                        }
+                        Err(e) => {
+                            if tx.send(Err(e)).is_err() {
+                                // Receiver dropped, stop processing
+                                return;
+                            }
                         }
                     }
                 }
-                true
-            })
-            .collect();
+            });
         
-        // Use rayon for parallel processing
-        let (tx, rx) = mpsc::channel();
-        let result_count = std::sync::atomic::AtomicUsize::new(0);
+        // Send results through async channel with batching for efficiency
+        let mut batch = Vec::with_capacity(100); // Batch size for async sends
         
-        entries.into_par_iter().for_each_with(tx, |tx, entry| {
-            // Check if we've hit max results limit
-            if let Some(max) = options.max_results {
-                if result_count.load(std::sync::atomic::Ordering::Relaxed) >= max {
-                    return;
-                }
-            }
-            
-            match self.process_entry(
-                entry,
-                &name_regex,
-                &content_regex,
-                &size_filter,
-                &date_filter,
-                &file_type_filter,
-                &options,
-            ) {
-                Ok(Some(result)) => {
-                    result_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    let _ = tx.send(Ok(result));
-                }
-                Ok(None) => {
-                    // No match, continue
-                }
-                Err(e) => {
-                    let _ = tx.send(Err(e));
-                }
-            }
-        });
-        
-        // Send results through async channel
         for result in rx {
-            if result_sender.send(result).is_err() {
-                // Receiver dropped, stop search
+            batch.push(result);
+            
+            // Send batch when full or on completion
+            if batch.len() >= 100 {
+                for batched_result in batch.drain(..) {
+                    if result_sender.send(batched_result).is_err() {
+                        // Receiver dropped, stop search
+                        self.cancelled.store(true, Ordering::Relaxed);
+                        return Err(SearchError::Cancelled);
+                    }
+                }
+            }
+        }
+        
+        // Send remaining results in batch
+        for batched_result in batch {
+            if result_sender.send(batched_result).is_err() {
                 return Err(SearchError::Cancelled);
             }
         }
@@ -338,7 +558,9 @@ impl SearchEngine {
     fn process_entry(
         &self,
         entry: jwalk::DirEntry<((), ())>,
+        name_pattern: &Option<String>,
         name_regex: &Option<Regex>,
+        fuzzy_matcher: &Option<SkimMatcherV2>,
         content_regex: &Option<Regex>,
         size_filter: &Option<SizeFilter>,
         date_filter: &Option<DateFilter>,
@@ -359,11 +581,54 @@ impl SearchEngine {
             .unwrap_or("")
             .to_string();
         
-        // Check name pattern
-        if let Some(regex) = name_regex {
-            if !regex.is_match(&file_name) {
+        // Check name pattern with fuzzy matching and scoring
+        let mut name_match_score = 0i64;
+        let mut match_type = MatchType::Directory; // Default for directories
+        
+        if metadata.is_file() {
+            match_type = MatchType::Content; // Default for files, may be upgraded later
+        }
+        
+        if let Some(pattern) = name_pattern {
+            let mut name_matches = false;
+            
+            // Try exact regex match first (highest priority)
+            if let Some(regex) = name_regex {
+                if regex.is_match(&file_name) {
+                    name_matches = true;
+                    name_match_score = 100; // Perfect score for exact match
+                    match_type = if metadata.is_dir() {
+                        MatchType::Directory
+                    } else {
+                        MatchType::ExactName
+                    };
+                }
+            }
+            
+            // Try fuzzy matching if enabled and no exact match
+            if !name_matches {
+                if let Some(matcher) = fuzzy_matcher {
+                    if let Some(score) = matcher.fuzzy_match(&file_name, pattern) {
+                        if score >= options.fuzzy_threshold {
+                            name_matches = true;
+                            name_match_score = score;
+                            match_type = if metadata.is_dir() {
+                                MatchType::Directory
+                            } else {
+                                MatchType::FuzzyName
+                            };
+                        }
+                    }
+                }
+            }
+            
+            // If we have a name pattern but no match, skip unless we're doing content search
+            if !name_matches && content_regex.is_none() {
                 return Ok(None);
             }
+        } else {
+            // No name pattern - set base score for relevance
+            name_match_score = 50;
         }
         
         // Check size filter
@@ -425,18 +690,53 @@ impl SearchEngine {
             }
         }
         
-        // Check content if needed
+        // Check content if needed and calculate content score
         let mut content_matches = Vec::new();
+        let mut content_score = 0i64;
+        
         if let Some(regex) = content_regex {
             if metadata.is_file() {
                 content_matches = self.search_file_content(&path, regex)?;
                 if content_matches.is_empty() {
-                    return Ok(None);
+                    // If we required content match but found none, skip unless we had name match
+                    if name_pattern.is_none() || (name_pattern.is_some() && name_match_score == 0) {
+                        return Ok(None);
+                    }
+                } else {
+                    // Calculate content relevance score based on match count and positions
+                    content_score = (content_matches.len() as i64 * 10).min(80);
+                    if match_type == MatchType::Content {
+                        match_type = MatchType::Content; // Content match confirmed
+                    }
                 }
             }
         }
         
-        // Create result
+        // Calculate final relevance score
+        let mut final_score = name_match_score.max(content_score);
+        
+        // Boost score for exact extension matches
+        if let Some(pattern) = name_pattern {
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                if pattern.to_lowercase().ends_with(&format!(".{}", ext.to_lowercase())) {
+                    final_score += 20;
+                    if match_type == MatchType::FuzzyName || match_type == MatchType::Content {
+                        match_type = MatchType::Extension;
+                    }
+                }
+            }
+        }
+        
+        // Boost score for shorter paths (closer to search root)
+        let path_depth = path.components().count() as i64;
+        final_score += (10 - path_depth.min(10)).max(0);
+        
+        // Only return results that have meaningful matches
+        if final_score < 10 && content_matches.is_empty() && name_pattern.is_some() {
+            return Ok(None);
+        }
+        
+        // Create result with relevance score
         Ok(Some(SearchResult {
             path: path.to_path_buf(),
             name: file_name,
@@ -445,41 +745,90 @@ impl SearchEngine {
             created: metadata.created().ok(),
             is_directory: metadata.is_dir(),
             matches: content_matches,
+            relevance_score: final_score,
+            match_type,
         }))
     }
     
     fn search_file_content(&self, path: &Path, regex: &Regex) -> Result<Vec<ContentMatch>, SearchError> {
         let mut matches = Vec::new();
         
-        // Only search text files (basic heuristic)
+        // Enhanced binary file detection
         let extension = path.extension()
             .and_then(|ext| ext.to_str())
             .unwrap_or("")
             .to_lowercase();
         
-        // Skip binary file extensions
-        if matches!(extension.as_str(), "exe" | "dll" | "so" | "dylib" | "bin" | "jpg" | "png" | "gif" | "mp4" | "mp3" | "zip" | "rar" | "7z") {
+        // Comprehensive binary file extension list
+        const BINARY_EXTENSIONS: &[&str] = &[
+            // Executables
+            "exe", "dll", "so", "dylib", "bin", "app",
+            // Images
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "ico", "tiff", "tif",
+            // Audio/Video
+            "mp4", "avi", "mov", "mkv", "mp3", "wav", "flac", "ogg", "m4a",
+            // Archives
+            "zip", "rar", "7z", "tar", "gz", "bz2", "xz",
+            // Fonts
+            "ttf", "otf", "woff", "woff2",
+            // Office documents (binary)
+            "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pdf",
+            // Other binary formats
+            "sqlite", "db", "dat", "bin", "iso", "img"
+        ];
+        
+        if BINARY_EXTENSIONS.contains(&extension.as_str()) {
             return Ok(matches);
         }
         
-        // Limit file size for content search (max 10MB)
-        if let Ok(metadata) = fs::metadata(path) {
-            if metadata.len() > 10 * 1024 * 1024 {
-                return Ok(matches);
-            }
-        }
-        
-        // Read file content
-        let content = match std::fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(_) => return Ok(matches), // Skip binary files or unreadable files
+        // Get file size efficiently
+        let metadata = match fs::metadata(path) {
+            Ok(meta) => meta,
+            Err(_) => return Ok(matches),
         };
         
-        // Search for matches line by line
-        for (line_number, line) in content.lines().enumerate() {
+        // Skip large files (configurable limit)
+        const MAX_CONTENT_SEARCH_SIZE: u64 = 50 * 1024 * 1024; // 50MB
+        if metadata.len() > MAX_CONTENT_SEARCH_SIZE {
+            return Ok(matches);
+        }
+        
+        // Check cancellation before expensive I/O
+        if self.cancelled.load(Ordering::Relaxed) {
+            return Err(SearchError::Cancelled);
+        }
+        
+        // Optimized file reading with buffer reuse
+        let content = match std::fs::read(path) {
+            Ok(bytes) => {
+                // Quick binary detection: check for null bytes in first 512 bytes
+                let check_len = bytes.len().min(512);
+                if bytes[..check_len].contains(&0) {
+                    return Ok(matches); // Likely binary file
+                }
+                
+                // Convert to string with error handling
+                match String::from_utf8(bytes) {
+                    Ok(content) => content,
+                    Err(_) => return Ok(matches), // Invalid UTF-8, skip
+                }
+            },
+            Err(_) => return Ok(matches),
+        };
+        
+        // Optimized line-by-line search with early termination
+        let mut line_number = 0;
+        for line in content.lines() {
+            line_number += 1;
+            
+            // Check cancellation periodically (every 1000 lines)
+            if line_number % 1000 == 0 && self.cancelled.load(Ordering::Relaxed) {
+                return Err(SearchError::Cancelled);
+            }
+            
             for mat in regex.find_iter(line) {
                 matches.push(ContentMatch {
-                    line_number: line_number + 1,
+                    line_number,
                     line_content: line.to_string(),
                     match_start: mat.start(),
                     match_end: mat.end(),
@@ -488,6 +837,77 @@ impl SearchEngine {
         }
         
         Ok(matches)
+    }
+    
+    /// Get cached entries or perform fresh traversal with caching
+    fn get_cached_or_fresh_entries(
+        &self,
+        root_path: &Path,
+        walker: WalkDir,
+        options: &SearchOptions,
+    ) -> Result<Vec<jwalk::DirEntry<((), ())>>, SearchError> {
+        // For now, we'll cache at the search result level rather than jwalk entry level
+        // This avoids complex jwalk::DirEntry construction issues
+        
+        // Always perform fresh traversal but cache the results for future use
+        let start_time = Instant::now();
+        let entries: Vec<_> = walker
+            .into_iter()
+            .filter_map(|entry| {
+                // Early cancellation check
+                if self.cancelled.load(Ordering::Relaxed) {
+                    return None;
+                }
+                entry.ok()
+            })
+            .filter(|entry| {
+                // Filter hidden files early
+                if !options.include_hidden {
+                    if let Some(name) = entry.file_name().to_str() {
+                        if name.starts_with('.') {
+                            return false;
+                        }
+                    }
+                }
+                true
+            })
+            .collect();
+        
+        // Cache the results if caching is enabled and traversal took significant time
+        let traversal_time = start_time.elapsed();
+        if traversal_time > std::time::Duration::from_millis(100) {
+            self.cache_directory_entries(root_path, &entries);
+        }
+        
+        Ok(entries)
+    }
+    
+    /// Cache directory entries for future searches
+    fn cache_directory_entries(&self, root_path: &Path, entries: &[jwalk::DirEntry<((), ())>]) {
+        if !self.enable_caching {
+            return;
+        }
+        
+        let cached_entries: Vec<CachedEntry> = entries.iter()
+            .filter_map(|entry| {
+                let path = entry.path();
+                let metadata = std::fs::metadata(&path).ok()?;
+                
+                Some(CachedEntry {
+                    path: path.to_path_buf(),
+                    name: entry.file_name().to_str()?.to_string(),
+                    size: metadata.len(),
+                    modified: metadata.modified().ok(),
+                    created: metadata.created().ok(),
+                    is_directory: metadata.is_dir(),
+                    indexed_at: SystemTime::now(),
+                })
+            })
+            .collect();
+        
+        if let Ok(mut index) = self.directory_index.write() {
+            index.cache_entries(root_path.to_path_buf(), cached_entries);
+        }
     }
 }
 

@@ -37,6 +37,13 @@ import {
   SwitchPanelCommand,
   SetGridLayoutCommand,
 } from "../implementations/panel";
+
+import {
+  OpenSearchPanelCommand,
+  CloseSearchPanelCommand,
+  ToggleSearchPanelCommand,
+} from "../implementations/search";
+
 import { AppDispatch } from "@/store";
 import { LoadDirectoryCommand } from "../implementations/file/LoadDirectoryCommand";
 
@@ -133,6 +140,17 @@ export class CommandFactory {
   }
 
   /**
+   * Create all search commands
+   */
+  createSearchCommands(): Command[] {
+    return [
+      new OpenSearchPanelCommand(this.dispatch),
+      new CloseSearchPanelCommand(this.dispatch),
+      new ToggleSearchPanelCommand(this.dispatch),
+    ];
+  }
+
+  /**
    * Create all commands at once
    */
   createAllCommands(): Command[] {
@@ -141,6 +159,7 @@ export class CommandFactory {
       ...this.createNavigationCommands(),
       ...this.createViewCommands(),
       ...this.createPanelCommands(),
+      ...this.createSearchCommands(),
     ];
   }
 
@@ -154,6 +173,7 @@ export class CommandFactory {
     commandsByCategory.set("Navigation", this.createNavigationCommands());
     commandsByCategory.set("View", this.createViewCommands());
     commandsByCategory.set("Panel", this.createPanelCommands());
+    commandsByCategory.set("Search", this.createSearchCommands());
 
     return commandsByCategory;
   }

@@ -56,10 +56,13 @@ pub struct FileTypeFilterRequest {
 pub struct SearchOptionsRequest {
     pub case_sensitive: bool,
     pub use_regex: bool,
+    pub use_fuzzy: bool,         // Enable fuzzy matching for name patterns
+    pub fuzzy_threshold: i64,    // Minimum fuzzy match score (0-100)
     pub include_hidden: bool,
     pub follow_symlinks: bool,
     pub max_results: Option<usize>,
     pub max_depth: Option<usize>,
+    pub sort_by_relevance: bool,  // Sort results by relevance score
 }
 
 /// Search result for frontend (using string timestamps for serialization)
@@ -73,6 +76,8 @@ pub struct SearchResultResponse {
     pub created: Option<String>,  // ISO 8601 string
     pub is_directory: bool,
     pub matches: Vec<ContentMatchResponse>,
+    pub relevance_score: i64,     // Higher score = more relevant
+    pub match_type: String,       // Match type as string for frontend
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,10 +166,13 @@ impl From<SearchOptionsRequest> for SearchOptions {
         SearchOptions {
             case_sensitive: req.case_sensitive,
             use_regex: req.use_regex,
+            use_fuzzy: req.use_fuzzy,
+            fuzzy_threshold: req.fuzzy_threshold,
             include_hidden: req.include_hidden,
             follow_symlinks: req.follow_symlinks,
             max_results: req.max_results,
             max_depth: req.max_depth,
+            sort_by_relevance: req.sort_by_relevance,
         }
     }
 }
@@ -179,6 +187,14 @@ fn system_time_to_iso_string(time: Option<SystemTime>) -> Option<String> {
 
 impl From<(String, SearchResult)> for SearchResultResponse {
     fn from((search_id, result): (String, SearchResult)) -> Self {
+        let match_type_str = match result.match_type {
+            nimbus_search::MatchType::ExactName => "exact_name",
+            nimbus_search::MatchType::FuzzyName => "fuzzy_name", 
+            nimbus_search::MatchType::Content => "content",
+            nimbus_search::MatchType::Extension => "extension",
+            nimbus_search::MatchType::Directory => "directory",
+        };
+        
         SearchResultResponse {
             search_id,
             path: result.path.to_string_lossy().to_string(),
@@ -193,6 +209,8 @@ impl From<(String, SearchResult)> for SearchResultResponse {
                 match_start: m.match_start,
                 match_end: m.match_end,
             }).collect(),
+            relevance_score: result.relevance_score,
+            match_type: match_type_str.to_string(),
         }
     }
 }

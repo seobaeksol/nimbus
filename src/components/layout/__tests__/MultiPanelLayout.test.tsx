@@ -61,13 +61,13 @@ describe('MultiPanelLayout', () => {
     });
 
     // Initially panel-1 should be active
-    expect(store.getState().panels.activePanelId).toBe('panel-1');
+    expect((store.getState() as any).panels.activePanelId).toBe('panel-1');
 
     // Find and click on the second panel wrapper
     const panelWrappers = screen.getAllByTestId(/panel-wrapper/);
     if (panelWrappers.length > 1) {
       fireEvent.click(panelWrappers[1]);
-      expect(store.getState().panels.activePanelId).toBe('panel-2');
+      expect((store.getState() as any).panels.activePanelId).toBe('panel-2');
     }
   });
 

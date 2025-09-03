@@ -68,6 +68,7 @@ export interface PanelState {
   clipboardState: ClipboardState;
   progressIndicators: ProgressInfo[];
   notifications: NotificationInfo[];
+  searchPanelVisible: boolean;
 }
 
 const defaultLayouts: GridLayout[] = [
@@ -115,6 +116,7 @@ const initialState: PanelState = {
   },
   progressIndicators: [],
   notifications: [],
+  searchPanelVisible: false,
 };
 
 const panelSlice = createSlice({
@@ -390,6 +392,18 @@ const panelSlice = createSlice({
         }
       });
     },
+
+    toggleSearchPanel: (state) => {
+      state.searchPanelVisible = !state.searchPanelVisible;
+    },
+
+    showSearchPanel: (state) => {
+      state.searchPanelVisible = true;
+    },
+
+    hideSearchPanel: (state) => {
+      state.searchPanelVisible = false;
+    },
   },
 });
 
@@ -418,6 +432,9 @@ export const {
   clearAllNotifications,
   clearPanelNotifications,
   setAddressBarActive,
+  toggleSearchPanel,
+  showSearchPanel,
+  hideSearchPanel,
 } = panelSlice.actions;
 
 export default panelSlice.reducer;

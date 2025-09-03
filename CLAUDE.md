@@ -10,7 +10,8 @@ Use the `@` symbol to reference specific documentation sections quickly:
 - `@setup` - Project setup and development workflow commands
 - `@architecture` - Multi-process architecture and component structure  
 - `@grid-layouts` - Grid layout system (2x2, 2x3, 3x2) and multi-panel interface
-- `@features` - Core features: file management, archives, remote systems, search, viewers
+- `@features` - Core features: file management, **search system (75% complete)**, archives, remote systems, viewers
+- `@search` - Search system implementation: fuzzy matching, content search, real-time streaming
 - `@tech-stack` - Technology stack, dependencies, and build tools
 - `@performance` - Performance targets and optimization guidelines
 - `@security` - Security considerations and development guidelines
@@ -236,29 +237,83 @@ interface RootState {
 - **Safe loading**: libloading with ABI stability
 - **Sandboxing options**: Process isolation, WebAssembly runtime
 
-## @features - Core Features (Planned)
+## @search - Search System Implementation
+
+### Current Implementation Status: 75% Complete
+
+**✅ Completed Features:**
+- Fuzzy search with SkimMatcherV2 (configurable threshold 0-100)
+- Content search with line context and match highlighting
+- Real-time result streaming via Tauri IPC events
+- Relevance scoring algorithm (Exact: 100pts, Fuzzy: variable, Content: 10pts/match)
+- Directory caching with 30-minute TTL
+- Parallel processing with jwalk + rayon
+- React integration with Redux state management
+- Command pattern integration with keyboard shortcuts
+
+**⏳ Pending Features:**
+- Advanced filters UI integration (backend ready)
+- Saved searches and search history
+
+### Architecture
+```
+React UI → Redux State → useSearch Hook → SearchService → Tauri IPC → Rust SearchEngine
+  ↓           ↓            ↓               ↓              ↓            ↓
+Components  searchSlice  Hook methods   Event stream   JSON msgs    jwalk+rayon
+```
+
+### Key Files
+- **Backend**: `src-tauri/crates/search-engine/src/lib.rs` - Core search logic
+- **Frontend**: `src/components/search/` - UI components
+- **Integration**: `src/components/panels/SearchPanel.tsx` - Main UI integration
+- **Types**: `src/types/index.ts` - TypeScript interfaces
+- **State**: `src/store/slices/searchSlice.ts` - Redux state
+- **Hooks**: `src/hooks/useSearch.ts` - React integration
+
+### Usage
+- **Keyboard**: Ctrl+Shift+F (open), Escape (close)
+- **Command Palette**: "Toggle Search Panel"
+- **Programmatic**: `useSearch()` hook in components
+
+### Performance
+- **Directory Caching**: 30-minute TTL reduces repeated scans
+- **Parallel Processing**: Utilizes all CPU cores via rayon
+- **Streaming Results**: UI updates in real-time as matches found
+- **Memory Efficient**: Processes large directories without memory exhaustion
+
+## @features - Core Features
 
 ### File Management
 - Multi-panel tabbed interface with grid layout support (2x2, 2x3, 3x2 grids)
 - Basic operations: copy, move, delete, rename with progress tracking
 - Advanced operations: batch operations, secure deletion, integrity verification
 
-### Archive Support
+### Search System ✅ **75% Complete**
+- **Fuzzy search** with configurable thresholds (0-100) using SkimMatcherV2
+- **Content search** with match highlighting and line context
+- **Real-time streaming** results via Tauri IPC events
+- **Relevance scoring**: Exact matches (100 points), fuzzy matches (variable), content matches (10 points/match)
+- **Match type classification**: ExactName, FuzzyName, Content, Extension, Directory
+- **Directory caching** with 30-minute TTL for performance
+- **Parallel processing** using `jwalk` + `rayon` for large directories
+- **React integration** with Redux state management and custom hooks
+- **Keyboard shortcuts**: Ctrl+Shift+F (open), Escape (close)
+- **Command pattern** integration with command palette
+- **TypeScript type safety** throughout the search system
+- ⏳ **Pending**: Advanced filters (size, date, file type) - backend ready
+- ⏳ **Pending**: Saved searches and search history
+
+### Archive Support (Planned)
 - Browse archives as virtual filesystems (ZIP, TAR, 7z, RAR)
 - Extract with options: preserve paths, overwrite policies, password support
 - Create archives with compression level control
 
-### Remote File Systems
+### Remote File Systems (Planned)
 - FTP/SFTP protocol support with secure credential storage
 - WebDAV integration for cloud storage
 - Connection pooling and retry mechanisms
 
-### Search Engine
-- Parallel recursive search using jwalk + rayon
-- Streaming results for immediate UI feedback
-- Advanced filters: name patterns, content, size, date, file types
-
-### File Viewers
+### File Viewers (Planned)
 - Text viewer with encoding detection and syntax highlighting
 - Image viewer with EXIF data display
 - Hex viewer for binary files

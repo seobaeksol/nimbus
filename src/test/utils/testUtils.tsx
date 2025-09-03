@@ -90,6 +90,7 @@ export const createMockPanelState = (overrides: Partial<PanelState> = {}): Panel
   },
   progressIndicators: [],
   notifications: [],
+  searchPanelVisible: false,
   ...overrides,
 });
 
