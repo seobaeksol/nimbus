@@ -3,14 +3,20 @@ import {
   SearchResultsState, 
   SearchQuery, 
   SearchResult,
-  SearchHistoryEntry 
+  SearchHistoryEntry,
+  SavedSearch
 } from "@/types";
+import { searchHistoryStorage, savedSearchesStorage, initializeSearchStorage } from "@/utils/searchStorage";
+
+// Load persisted data
+const { history, savedSearches } = initializeSearchStorage();
 
 // Initial state for search functionality
 const initialState: SearchResultsState = {
   activeSearchId: undefined,
   searches: {},
-  history: []
+  history,
+  savedSearches
 };
 
 export const searchSlice = createSlice({
@@ -20,6 +26,7 @@ export const searchSlice = createSlice({
     // Start a new search
     startSearch: (state, action: PayloadAction<{ id: string; query: SearchQuery }>) => {
       const { id, query } = action.payload;
+      const pageSize = 50; // Default page size
       
       state.searches[id] = {
         id,
@@ -28,6 +35,11 @@ export const searchSlice = createSlice({
         results: [],
         totalResults: 0,
         startTime: new Date(),
+        pagination: {
+          page: 0,
+          pageSize,
+          totalPages: 0,
+        },
       };
       
       state.activeSearchId = id;
@@ -41,6 +53,9 @@ export const searchSlice = createSlice({
       if (search) {
         search.results.push(...results);
         search.totalResults = search.results.length;
+        
+        // Update pagination
+        search.pagination.totalPages = Math.ceil(search.totalResults / search.pagination.pageSize);
       }
     },
 
@@ -75,6 +90,9 @@ export const searchSlice = createSlice({
           if (state.history.length > 50) {
             state.history = state.history.slice(0, 50);
           }
+          
+          // Persist to localStorage
+          searchHistoryStorage.save(state.history);
         }
       }
     },
@@ -137,11 +155,17 @@ export const searchSlice = createSlice({
     removeFromHistory: (state, action: PayloadAction<string>) => {
       const searchId = action.payload;
       state.history = state.history.filter(entry => entry.id !== searchId);
+      
+      // Persist to localStorage
+      searchHistoryStorage.save(state.history);
     },
 
     // Clear search history
     clearHistory: (state) => {
       state.history = [];
+      
+      // Clear localStorage
+      searchHistoryStorage.clear();
     },
 
     // Re-run search from history
@@ -157,6 +181,11 @@ export const searchSlice = createSlice({
           results: [],
           totalResults: 0,
           startTime: new Date(),
+          pagination: {
+            page: 0,
+            pageSize: 50,
+            totalPages: 0,
+          },
         };
         
         state.activeSearchId = newSearchId;
@@ -273,6 +302,78 @@ export const searchSlice = createSlice({
         delete (search as any).originalResults;
       }
     },
+
+    // Pagination actions
+    setSearchPage: (state, action: PayloadAction<{ searchId: string; page: number }>) => {
+      const { searchId, page } = action.payload;
+      const search = state.searches[searchId];
+      
+      if (search && page >= 0 && page < search.pagination.totalPages) {
+        search.pagination.page = page;
+      }
+    },
+
+    setPageSize: (state, action: PayloadAction<{ searchId: string; pageSize: number }>) => {
+      const { searchId, pageSize } = action.payload;
+      const search = state.searches[searchId];
+      
+      if (search && pageSize > 0) {
+        search.pagination.pageSize = pageSize;
+        search.pagination.totalPages = Math.ceil(search.totalResults / pageSize);
+        
+        // Adjust current page if it's now out of bounds
+        if (search.pagination.page >= search.pagination.totalPages) {
+          search.pagination.page = Math.max(0, search.pagination.totalPages - 1);
+        }
+      }
+    },
+
+    // Saved search CRUD operations
+    saveSavedSearch: (state, action: PayloadAction<SavedSearch>) => {
+      const savedSearch = action.payload;
+      const existingIndex = state.savedSearches.findIndex(s => s.id === savedSearch.id);
+      
+      if (existingIndex >= 0) {
+        state.savedSearches[existingIndex] = savedSearch;
+      } else {
+        state.savedSearches.unshift(savedSearch);
+      }
+      
+      // Persist to localStorage
+      savedSearchesStorage.save(state.savedSearches);
+    },
+
+    updateSavedSearch: (state, action: PayloadAction<SavedSearch>) => {
+      const updatedSearch = action.payload;
+      const index = state.savedSearches.findIndex(s => s.id === updatedSearch.id);
+      
+      if (index >= 0) {
+        state.savedSearches[index] = updatedSearch;
+        savedSearchesStorage.save(state.savedSearches);
+      }
+    },
+
+    deleteSavedSearch: (state, action: PayloadAction<string>) => {
+      const searchId = action.payload;
+      state.savedSearches = state.savedSearches.filter(s => s.id !== searchId);
+      savedSearchesStorage.save(state.savedSearches);
+    },
+
+    useSavedSearch: (state, action: PayloadAction<string>) => {
+      const searchId = action.payload;
+      const savedSearch = state.savedSearches.find(s => s.id === searchId);
+      
+      if (savedSearch) {
+        savedSearch.lastUsed = new Date();
+        savedSearch.useCount += 1;
+        savedSearchesStorage.save(state.savedSearches);
+      }
+    },
+
+    clearSavedSearches: (state) => {
+      state.savedSearches = [];
+      savedSearchesStorage.clear();
+    },
   }
 });
 
@@ -291,6 +392,13 @@ export const {
   sortSearchResults,
   filterSearchResults,
   clearSearchFilters,
+  setSearchPage,
+  setPageSize,
+  saveSavedSearch,
+  updateSavedSearch,
+  deleteSavedSearch,
+  useSavedSearch,
+  clearSavedSearches,
 } = searchSlice.actions;
 
 export default searchSlice.reducer;

@@ -51,6 +51,11 @@ export class SearchService {
         results: [],
         totalResults: 0,
         startTime: new Date(),
+        pagination: {
+          page: 0,
+          pageSize: 50,
+          totalPages: 0,
+        },
       };
       
       this.activeSearches.set(searchId, searchState);

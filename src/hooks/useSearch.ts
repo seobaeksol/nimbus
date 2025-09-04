@@ -19,12 +19,21 @@ import {
   sortSearchResults,
   filterSearchResults,
   clearSearchFilters,
+  clearHistory,
+  removeFromHistory,
+  rerunSearchFromHistory,
+  saveSavedSearch,
+  updateSavedSearch,
+  deleteSavedSearch,
+  useSavedSearch,
+  clearSavedSearches,
 } from '@/store/slices/searchSlice';
 import { 
   SearchQuery, 
   SearchOptions, 
   SearchState, 
-  SearchResult 
+  SearchResult,
+  SavedSearch
 } from '@/types';
 
 export interface UseSearchReturn {
@@ -54,6 +63,17 @@ export interface UseSearchReturn {
   
   // Search history
   searchHistory: Array<any>;
+  clearHistory: () => void;
+  removeFromHistory: (searchId: string) => void;
+  rerunFromHistory: (historyId: string) => Promise<string>;
+
+  // Saved searches
+  savedSearches: SavedSearch[];
+  saveSavedSearch: (savedSearch: SavedSearch) => void;
+  updateSavedSearch: (savedSearch: SavedSearch) => void;
+  deleteSavedSearch: (searchId: string) => void;
+  useSavedSearch: (searchId: string) => void;
+  clearSavedSearches: () => void;
   
   // Default options
   createDefaultOptions: () => SearchOptions;
@@ -205,6 +225,47 @@ export function useSearch(): UseSearchReturn {
     dispatch(clearAllSearches());
   }, [dispatch]);
 
+  // History management
+  const clearHistoryHandler = useCallback(() => {
+    dispatch(clearHistory());
+  }, [dispatch]);
+
+  const removeFromHistoryHandler = useCallback((searchId: string) => {
+    dispatch(removeFromHistory(searchId));
+  }, [dispatch]);
+
+  const rerunFromHistoryHandler = useCallback(async (historyId: string): Promise<string> => {
+    const historyEntry = searchState.history.find(entry => entry.id === historyId);
+    if (!historyEntry) {
+      throw new Error(`History entry ${historyId} not found`);
+    }
+
+    // Start a new search with the same query
+    const newSearchId = await startSearch(historyEntry.query);
+    return newSearchId;
+  }, [searchState.history, startSearch]);
+
+  // Saved search handlers
+  const saveSavedSearchHandler = useCallback((savedSearch: SavedSearch) => {
+    dispatch(saveSavedSearch(savedSearch));
+  }, [dispatch]);
+
+  const updateSavedSearchHandler = useCallback((savedSearch: SavedSearch) => {
+    dispatch(updateSavedSearch(savedSearch));
+  }, [dispatch]);
+
+  const deleteSavedSearchHandler = useCallback((searchId: string) => {
+    dispatch(deleteSavedSearch(searchId));
+  }, [dispatch]);
+
+  const useSavedSearchHandler = useCallback((searchId: string) => {
+    dispatch(useSavedSearch(searchId));
+  }, [dispatch]);
+
+  const clearSavedSearchesHandler = useCallback(() => {
+    dispatch(clearSavedSearches());
+  }, [dispatch]);
+
   // Create default options
   const createDefaultOptions = useCallback((): SearchOptions => {
     return {
@@ -257,6 +318,17 @@ export function useSearch(): UseSearchReturn {
     
     // History
     searchHistory: searchState.history,
+    clearHistory: clearHistoryHandler,
+    removeFromHistory: removeFromHistoryHandler,
+    rerunFromHistory: rerunFromHistoryHandler,
+
+    // Saved searches
+    savedSearches: searchState.savedSearches,
+    saveSavedSearch: saveSavedSearchHandler,
+    updateSavedSearch: updateSavedSearchHandler,
+    deleteSavedSearch: deleteSavedSearchHandler,
+    useSavedSearch: useSavedSearchHandler,
+    clearSavedSearches: clearSavedSearchesHandler,
     
     // Utilities
     createDefaultOptions,
@@ -288,6 +360,7 @@ export function useActiveSearchResults(): {
   searchId?: string;
   totalResults: number;
   error?: string;
+  pagination?: { page: number; pageSize: number; totalPages: number };
 } {
   const activeSearchId = useAppSelector(state => state.search.activeSearchId);
   const activeSearch = useAppSelector(state => 
@@ -300,5 +373,6 @@ export function useActiveSearchResults(): {
     searchId: activeSearchId,
     totalResults: activeSearch?.totalResults || 0,
     error: activeSearch?.error,
+    pagination: activeSearch?.pagination,
   };
 }

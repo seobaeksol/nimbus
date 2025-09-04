@@ -8,6 +8,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { useActiveSearchResults } from '@/hooks/useSearch';
 import { SearchResult } from '@/types';
+import { SearchPagination } from './SearchPagination';
 
 interface SearchResultsProps {
   onResultClick?: (result: SearchResult) => void;
@@ -20,12 +21,21 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   onResultDoubleClick,
   className = ''
 }) => {
-  const { results, isSearching, searchId, totalResults, error } = useActiveSearchResults();
+  const { results, isSearching, searchId, totalResults, error, pagination } = useActiveSearchResults();
 
   // Sort results by relevance score (descending)
   const sortedResults = useMemo(() => {
     return [...results].sort((a, b) => b.relevanceScore - a.relevanceScore);
   }, [results]);
+
+  // Paginate results for display
+  const paginatedResults = useMemo(() => {
+    if (!pagination) return sortedResults;
+    
+    const startIndex = pagination.page * pagination.pageSize;
+    const endIndex = startIndex + pagination.pageSize;
+    return sortedResults.slice(startIndex, endIndex);
+  }, [sortedResults, pagination]);
 
   // Handle result click
   const handleResultClick = useCallback((result: SearchResult) => {
@@ -146,9 +156,21 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
         )}
       </div>
 
+      {/* Pagination Controls */}
+      {pagination && pagination.totalPages > 1 && (
+        <SearchPagination
+          searchId={searchId!}
+          currentPage={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalResults={totalResults}
+          className="search-pagination-top"
+        />
+      )}
+
       {/* Results List */}
       <div className="results-list">
-        {sortedResults.map((result, index) => {
+        {paginatedResults.map((result, index) => {
           const matchInfo = getMatchTypeInfo(result.matchType);
           const scoreColor = getScoreColor(result.relevanceScore);
 
@@ -239,6 +261,18 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           <div className="spinner"></div>
           <span>Finding more results...</span>
         </div>
+      )}
+
+      {/* Bottom Pagination Controls */}
+      {pagination && pagination.totalPages > 1 && (
+        <SearchPagination
+          searchId={searchId!}
+          currentPage={pagination.page}
+          pageSize={pagination.pageSize}
+          totalPages={pagination.totalPages}
+          totalResults={totalResults}
+          className="search-pagination-bottom"
+        />
       )}
     </div>
   );

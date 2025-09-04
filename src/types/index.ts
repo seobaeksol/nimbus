@@ -129,6 +129,7 @@ export interface SearchResultsState {
   activeSearchId?: string;
   searches: Record<string, SearchState>;
   history: SearchHistoryEntry[];
+  savedSearches: SavedSearch[];
 }
 
 export interface SearchState {
@@ -140,6 +141,11 @@ export interface SearchState {
   error?: string;
   startTime: Date;
   endTime?: Date;
+  pagination: {
+    page: number;        // Current page (0-based)
+    pageSize: number;    // Results per page
+    totalPages: number;  // Total number of pages
+  };
 }
 
 export interface SearchHistoryEntry {
@@ -170,4 +176,15 @@ export interface FuzzySearchConfig {
   threshold: number;
   caseSensitive: boolean;
   includeScore: boolean;
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  description?: string;
+  query: SearchQuery;
+  createdAt: Date;
+  lastUsed?: Date;
+  useCount: number;
+  tags?: string[];
 }

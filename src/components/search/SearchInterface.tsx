@@ -8,6 +8,7 @@
 import React, { useCallback, useState } from 'react';
 import { SearchPanel } from './SearchPanel';
 import { SearchResults } from './SearchResults';
+import { SearchHistory } from './SearchHistory';
 import { SearchResult } from '@/types';
 
 interface SearchInterfaceProps {
@@ -51,6 +52,14 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
 
       {isExpanded && (
         <div className="search-content">
+          {/* Search History */}
+          <div className="search-history-container">
+            <SearchHistory
+              className="search-history"
+              onSearchSelect={() => {/* History item selected */}}
+            />
+          </div>
+
           {/* Search Panel */}
           <div className="search-panel-container">
             <SearchPanel
