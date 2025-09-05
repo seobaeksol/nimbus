@@ -10,6 +10,7 @@ import { SearchPanel } from './SearchPanel';
 import { SearchResults } from './SearchResults';
 import { SearchHistory } from './SearchHistory';
 import { SearchResult } from '@/types';
+import './SearchAnimations.css';
 
 interface SearchInterfaceProps {
   initialPath?: string;
@@ -42,7 +43,7 @@ export const SearchInterface: React.FC<SearchInterfaceProps> = ({
       <div className="search-header">
         <h2>File Search</h2>
         <button 
-          className="toggle-expand"
+          className="toggle-expand btn-enhanced"
           onClick={() => setIsExpanded(!isExpanded)}
           aria-label={isExpanded ? "Collapse" : "Expand"}
         >

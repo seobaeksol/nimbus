@@ -8,6 +8,7 @@
 import React, { useCallback } from 'react';
 import { useAppDispatch } from '@/store';
 import { setSearchPage, setPageSize } from '@/store/slices/searchSlice';
+import './SearchAnimations.css';
 
 interface SearchPaginationProps {
   searchId: string;
@@ -117,7 +118,7 @@ export const SearchPagination: React.FC<SearchPaginationProps> = ({
       {/* Navigation controls */}
       <div className="pagination-controls">
         <button
-          className="page-btn prev-btn"
+          className="page-btn prev-btn btn-enhanced"
           onClick={() => handlePageChange(currentPage - 1)}
           disabled={currentPage === 0}
           title="Previous page"
@@ -131,7 +132,7 @@ export const SearchPagination: React.FC<SearchPaginationProps> = ({
               <span className="page-ellipsis">...</span>
             ) : (
               <button
-                className={`page-btn ${pageNum === currentPage ? 'active' : ''}`}
+                className={`page-btn btn-enhanced ${pageNum === currentPage ? 'active' : ''}`}
                 onClick={() => handlePageChange(pageNum)}
               >
                 {pageNum + 1}
@@ -141,7 +142,7 @@ export const SearchPagination: React.FC<SearchPaginationProps> = ({
         ))}
 
         <button
-          className="page-btn next-btn"
+          className="page-btn next-btn btn-enhanced"
           onClick={() => handlePageChange(currentPage + 1)}
           disabled={currentPage === totalPages - 1}
           title="Next page"

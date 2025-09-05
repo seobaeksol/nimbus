@@ -1,13 +1,17 @@
 .context-menu {
   background-color: #3c3c3c;
   border: 1px solid #555555;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
   min-width: 180px;
-  padding: 4px 0;
+  padding: 6px 0;
   color: #ffffff;
   font-size: 14px;
   user-select: none;
+  backdrop-filter: blur(12px);
+  animation: contextMenuSlideIn 0.15s ease-out;
+  transform-origin: top left;
+  will-change: opacity, transform;
 }
 
 .context-menu-header {
@@ -25,14 +29,29 @@
 .context-menu-item {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
+  padding: 8px 12px;
   cursor: pointer;
-  transition: background-color 0.15s ease;
-  gap: 8px;
+  transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  gap: 10px;
+  position: relative;
+  border-radius: 4px;
+  margin: 1px 4px;
 }
 
 .context-menu-item:hover:not(.disabled) {
   background-color: #0078d4;
+  transform: translateX(2px);
+}
+
+.context-menu-item:active:not(.disabled) {
+  transform: translateX(2px) scale(0.98);
+  transition-duration: 0.06s;
+}
+
+.context-menu-item.selected {
+  background-color: #106ebe;
+  outline: 2px solid rgba(16, 110, 190, 0.4);
+  outline-offset: -2px;
 }
 
 .context-menu-item.disabled {
@@ -60,5 +79,69 @@
 .context-menu-separator {
   height: 1px;
   background-color: #555555;
-  margin: 4px 0;
+  margin: 6px 4px;
+}
+
+/* Context Menu Animations */
+@keyframes contextMenuSlideIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.context-menu-item-enter {
+  animation: contextMenuItemEnter 0.1s ease-out;
+}
+
+@keyframes contextMenuItemEnter {
+  0% {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+  .context-menu {
+    background-color: rgba(28, 28, 30, 0.95);
+    border-color: rgba(84, 84, 88, 0.8);
+    backdrop-filter: blur(20px);
+  }
+  
+  .context-menu-header {
+    color: rgba(235, 235, 245, 0.6);
+    border-bottom-color: rgba(84, 84, 88, 0.8);
+  }
+  
+  .context-menu-separator {
+    background-color: rgba(84, 84, 88, 0.8);
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .context-menu {
+    animation: none;
+  }
+  
+  .context-menu-item {
+    transition-duration: 0.05s;
+  }
+  
+  .context-menu-item:hover:not(.disabled) {
+    transform: none;
+  }
+  
+  .context-menu-item:active:not(.disabled) {
+    transform: none;
+  }
 }

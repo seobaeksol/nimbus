@@ -7,8 +7,13 @@
 
 import React, { useCallback, useMemo } from 'react';
 import { useActiveSearchResults } from '@/hooks/useSearch';
-import { SearchResult } from '@/types';
+import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation';
+import { useSearchResultContext } from '@/hooks/useSearchResultContext';
+import { SearchResult, MatchType } from '@/types';
 import { SearchPagination } from './SearchPagination';
+import ContextMenu from '../common/ContextMenu';
+import { highlightText, highlightContentMatches, highlightLineContent } from '@/utils/searchHighlight';
+import './SearchAnimations.css';
 
 interface SearchResultsProps {
   onResultClick?: (result: SearchResult) => void;
@@ -21,7 +26,39 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   onResultDoubleClick,
   className = ''
 }) => {
-  const { results, isSearching, searchId, totalResults, error, pagination } = useActiveSearchResults();
+  const { results, isSearching, searchId, totalResults, error, pagination, query } = useActiveSearchResults();
+  
+  // Keyboard navigation integration
+  const keyboardNavigation = useKeyboardNavigation(results, {
+    onResultSelect: onResultClick,
+    onResultActivate: onResultDoubleClick,
+    enableQuickActions: true,
+    enableTypeahead: true,
+    wrapNavigation: true
+  });
+
+  // Context menu integration
+  const searchResultContext = useSearchResultContext({
+    onOpenFile: onResultDoubleClick,
+    onRevealInFolder: (result) => {
+      console.log('Reveal in folder:', result.path);
+      // TODO: Integrate with Tauri command to reveal file
+    },
+    onCopyPath: (result) => {
+      console.log('Copy path:', result.path);
+    },
+    onCopyName: (result) => {
+      console.log('Copy name:', result.name);
+    },
+    onDeleteFile: (results) => {
+      console.log('Delete files:', results.map(r => r.path));
+      // TODO: Integrate with Tauri command to delete files
+    },
+    onViewProperties: (result) => {
+      console.log('View properties:', result.path);
+      // TODO: Show properties dialog
+    }
+  });
 
   // Sort results by relevance score (descending)
   const sortedResults = useMemo(() => {
@@ -47,6 +84,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     onResultDoubleClick?.(result);
   }, [onResultDoubleClick]);
 
+  // Handle context menu
+  const handleContextMenu = useCallback((event: React.MouseEvent, result: SearchResult) => {
+    searchResultContext.showContextMenu(event, [result]);
+  }, [searchResultContext]);
+
   // Format file size
   const formatFileSize = useCallback((bytes: number): string => {
     const units = ['B', 'KB', 'MB', 'GB'];
@@ -62,11 +104,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   }, []);
 
   // Get match type display info
-  const getMatchTypeInfo = useCallback((matchType: string) => {
-    switch (matchType.toLowerCase()) {
-      case 'exactname':
+  const getMatchTypeInfo = useCallback((matchType: MatchType) => {
+    switch (matchType) {
+      case 'exact_name':
         return { label: 'Exact Name', className: 'match-exact', color: '#10b981' };
-      case 'fuzzyname':
+      case 'fuzzy_name':
         return { label: 'Fuzzy Name', className: 'match-fuzzy', color: '#3b82f6' };
       case 'content':
         return { label: 'Content', className: 'match-content', color: '#8b5cf6' };
@@ -88,26 +130,82 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
     return '#6b7280'; // gray
   }, []);
 
-  // Highlight matched text
-  const highlightMatches = useCallback((text: string, matches?: any[]): React.ReactNode => {
-    if (!matches || matches.length === 0) {
+  // Highlight matched text based on search query and match type
+  const highlightMatches = useCallback((text: string, result: SearchResult): React.ReactNode => {
+    if (!query || !text) {
       return text;
     }
 
-    // For now, just return the text as-is
-    // TODO: Implement proper highlighting based on match positions
-    return text;
-  }, []);
+    // Determine search term based on match type and query
+    let searchTerm = '';
+    
+    if (result.matchType === 'content' && result.matches && result.matches.length > 0) {
+      // For content matches, use the precise match highlighting
+      return highlightContentMatches(text, result.matches);
+    } else if (query.namePattern) {
+      searchTerm = query.namePattern;
+    } else if (query.contentPattern) {
+      searchTerm = query.contentPattern;
+    }
+
+    if (!searchTerm) {
+      return text;
+    }
+
+    // Get appropriate CSS class based on match type
+    const getHighlightClass = (matchType: MatchType) => {
+      switch (matchType) {
+        case 'fuzzy_name':
+          return 'search-match-highlight fuzzy';
+        case 'extension':
+          return 'search-match-highlight extension';
+        case 'directory':
+          return 'search-match-highlight directory';
+        default:
+          return 'search-match-highlight';
+      }
+    };
+
+    return highlightText(
+      text, 
+      searchTerm, 
+      result.matchType, 
+      { 
+        className: getHighlightClass(result.matchType),
+        caseSensitive: query.options.caseSensitive 
+      }
+    );
+  }, [query]);
 
   // Render loading state
   if (isSearching && results.length === 0) {
     return (
       <div className={`search-results ${className}`}>
         <div className="search-status">
-          <div className="loading-indicator">
-            <div className="spinner"></div>
+          <div className="loading-indicator status-indicator searching">
+            <div className="status-dot searching"></div>
+            <div className="loading-spinner"></div>
             <span>Searching...</span>
           </div>
+        </div>
+        
+        {/* Skeleton Loading States */}
+        <div className="results-list">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={index} className="result-item skeleton-loading">
+              <div className="result-header">
+                <div className="skeleton skeleton-line medium"></div>
+                <div className="result-badges">
+                  <div className="skeleton" style={{ width: '40px', height: '24px', borderRadius: '12px' }}></div>
+                  <div className="skeleton" style={{ width: '80px', height: '24px', borderRadius: '12px' }}></div>
+                </div>
+              </div>
+              <div className="result-details">
+                <div className="skeleton skeleton-line long"></div>
+                <div className="skeleton skeleton-line short"></div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -117,8 +215,11 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   if (error) {
     return (
       <div className={`search-results ${className}`}>
-        <div className="search-error">
-          <div className="error-icon">⚠️</div>
+        <div className="search-error fadeIn">
+          <div className="status-indicator error">
+            <div className="status-dot error"></div>
+            <div className="error-icon">⚠️</div>
+          </div>
           <div className="error-message">
             <h4>Search Error</h4>
             <p>{error}</p>
@@ -132,8 +233,8 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   if (!isSearching && results.length === 0) {
     return (
       <div className={`search-results ${className}`}>
-        <div className="no-results">
-          <div className="no-results-icon">🔍</div>
+        <div className="no-results fadeIn">
+          <div className="no-results-icon bounceIn">🔍</div>
           <h4>No results found</h4>
           <p>Try adjusting your search criteria</p>
         </div>
@@ -144,10 +245,21 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
   return (
     <div className={`search-results ${className}`}>
       {/* Results Header */}
-      <div className="results-header">
+      <div className="results-header search-stats-enter">
         <div className="results-count">
           <strong>{totalResults}</strong> result{totalResults !== 1 ? 's' : ''} found
-          {isSearching && <span className="searching-indicator"> (searching...)</span>}
+          {isSearching && (
+            <span className="status-indicator searching">
+              <span className="status-dot searching"></span>
+              <span className="searching-indicator">searching...</span>
+            </span>
+          )}
+          {!isSearching && totalResults > 0 && (
+            <span className="status-indicator completed">
+              <span className="status-dot completed"></span>
+              <span>complete</span>
+            </span>
+          )}
         </div>
         {searchId && (
           <div className="search-id">
@@ -169,29 +281,32 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
       )}
 
       {/* Results List */}
-      <div className="results-list">
+      <div className="results-list list-staggered" ref={keyboardNavigation.containerRef}>
         {paginatedResults.map((result, index) => {
           const matchInfo = getMatchTypeInfo(result.matchType);
           const scoreColor = getScoreColor(result.relevanceScore);
+          const isSelected = keyboardNavigation.selectedIndex === index;
 
           return (
             <div
               key={`${result.path}-${index}`}
-              className="result-item"
+              className={`result-item search-result-enter-staggered card-enhanced hover-lift ${isSelected ? 'selected' : ''}`}
               onClick={() => handleResultClick(result)}
               onDoubleClick={() => handleResultDoubleClick(result)}
+              onContextMenu={(e) => handleContextMenu(e, result)}
               role="button"
-              tabIndex={0}
+              tabIndex={isSelected ? 0 : -1}
+              data-result-index={index}
             >
               {/* Result Header */}
               <div className="result-header">
                 <div className="result-name">
-                  {highlightMatches(result.name, result.matches)}
+                  {highlightMatches(result.name, result)}
                 </div>
                 <div className="result-badges">
                   {/* Relevance Score */}
                   <div
-                    className="relevance-score"
+                    className="relevance-score badge-animated hover-glow"
                     style={{ backgroundColor: scoreColor }}
                     title="Relevance Score"
                   >
@@ -199,7 +314,7 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                   </div>
                   {/* Match Type */}
                   <div
-                    className={`match-type ${matchInfo.className}`}
+                    className={`match-type ${matchInfo.className} badge-animated hover-scale`}
                     style={{ backgroundColor: matchInfo.color }}
                     title={`Match Type: ${matchInfo.label}`}
                   >
@@ -236,10 +351,10 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
                   <div className="matches-preview">
                     {result.matches.slice(0, 3).map((match, matchIndex) => (
                       <div key={matchIndex} className="match-snippet">
-                        <span className="line-number">Line {match.lineNumber}:</span>
-                        <span className="match-text">
-                          {highlightMatches(match.lineContent, [match])}
-                        </span>
+                        {highlightLineContent(match, { 
+                          showLineNumbers: true,
+                          maxLength: 150 
+                        })}
                       </div>
                     ))}
                     {result.matches.length > 3 && (
@@ -257,9 +372,15 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
 
       {/* Loading More Indicator */}
       {isSearching && results.length > 0 && (
-        <div className="loading-more">
-          <div className="spinner"></div>
-          <span>Finding more results...</span>
+        <div className="loading-more fadeIn">
+          <div className="status-indicator searching">
+            <div className="status-dot searching"></div>
+            <div className="loading-spinner small"></div>
+            <span>Finding more results...</span>
+          </div>
+          <div className="progress-bar indeterminate">
+            <div className="progress-bar-fill"></div>
+          </div>
         </div>
       )}
 
@@ -272,6 +393,17 @@ export const SearchResults: React.FC<SearchResultsProps> = ({
           totalPages={pagination.totalPages}
           totalResults={totalResults}
           className="search-pagination-bottom"
+        />
+      )}
+
+      {/* Context Menu */}
+      {searchResultContext.contextMenu.isVisible && (
+        <ContextMenu
+          x={searchResultContext.contextMenu.x}
+          y={searchResultContext.contextMenu.y}
+          items={searchResultContext.getContextMenuItems()}
+          onClose={searchResultContext.hideContextMenu}
+          selectedFiles={searchResultContext.contextMenu.selectedResults}
         />
       )}
     </div>

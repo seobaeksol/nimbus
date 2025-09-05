@@ -361,6 +361,7 @@ export function useActiveSearchResults(): {
   totalResults: number;
   error?: string;
   pagination?: { page: number; pageSize: number; totalPages: number };
+  query?: SearchQuery;
 } {
   const activeSearchId = useAppSelector(state => state.search.activeSearchId);
   const activeSearch = useAppSelector(state => 
@@ -374,5 +375,6 @@ export function useActiveSearchResults(): {
     totalResults: activeSearch?.totalResults || 0,
     error: activeSearch?.error,
     pagination: activeSearch?.pagination,
+    query: activeSearch?.query,
   };
 }
