@@ -188,3 +188,6 @@ export interface SavedSearch {
   useCount: number;
   tags?: string[];
 }
+
+// Re-export plugin types for convenience
+export * from './plugins';

@@ -2,7 +2,21 @@
 name = "nimbus-plugin-sdk"
 version = "0.1.0"
 edition = "2021"
+description = "Plugin SDK for Nimbus File Manager"
+license = "MIT"
+repository = "https://github.com/seobaeksol/nimbus"
 
 [dependencies]
-# Will be implemented later
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+async-trait = "0.1"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+libloading = "0.8"
+semver = { version = "1.0", features = ["serde"] }
+log = "0.4"
+tokio = { version = "1.0", features = ["full"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"

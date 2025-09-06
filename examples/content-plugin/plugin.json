@@ -1,0 +1,38 @@
+{
+  "info": {
+    "name": "Media Info Plugin",
+    "version": "1.0.0",
+    "description": "Extracts comprehensive metadata from image, audio, and video files including EXIF data, ID3 tags, and technical information",
+    "author": "Nimbus Team",
+    "homepage": "https://github.com/nimbus-file-manager/plugins/media-info",
+    "repository": "https://github.com/nimbus-file-manager/plugins",
+    "license": "MIT",
+    "tags": ["media", "metadata", "exif", "id3", "images", "audio", "video"],
+    "minVersion": "0.1.0"
+  },
+  "pluginType": "Content",
+  "entryPoint": "plugin_main",
+  "dependencies": [],
+  "platforms": [
+    {
+      "os": "windows",
+      "arch": "x86_64",
+      "minVersion": "10.0"
+    },
+    {
+      "os": "macos",
+      "arch": "x86_64",
+      "minVersion": "10.15"
+    },
+    {
+      "os": "macos",
+      "arch": "aarch64",
+      "minVersion": "11.0"
+    },
+    {
+      "os": "linux",
+      "arch": "x86_64",
+      "minVersion": "18.04"
+    }
+  ]
+}
