@@ -2,7 +2,7 @@ import { FileOperationCommand } from "../../base/FileOperationCommand";
 import { CommandMetadata, ExecutionContext } from "../../types";
 import { DialogService } from "../../services/DialogService";
 import { createFile } from "../../ipc/file";
-import { navigateToPath } from "@/store/slices/panelSlice";
+import { navigateToPath, refreshPanel } from "@/store/slices/panelSlice";
 import { AppDispatch } from "@/store";
 
 export type CreateFileCommandOptions = {
@@ -62,6 +62,9 @@ export class CreateFileCommand extends FileOperationCommand<CreateFileCommandOpt
           navigateToPath({ panelId: context.panelId, path: targetDir })
         );
       }
+
+      // Refresh the panel to show the new file
+      this.dispatch(refreshPanel({ panelId: context.panelId }));
 
       this.showSuccess(`Created file: ${fileName}`);
     }, "Failed to create file");

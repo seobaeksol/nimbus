@@ -404,6 +404,19 @@ const panelSlice = createSlice({
     hideSearchPanel: (state) => {
       state.searchPanelVisible = false;
     },
+
+    refreshPanel: (
+      state,
+      action: PayloadAction<{ panelId: string }>
+    ) => {
+      const { panelId } = action.payload;
+      if (state.panels[panelId]) {
+        // Trigger a refresh by setting loading state
+        // This will be handled by the UI layer to reload directory contents
+        state.panels[panelId].isLoading = true;
+        state.panels[panelId].error = null;
+      }
+    },
   },
 });
 
@@ -435,6 +448,11 @@ export const {
   toggleSearchPanel,
   showSearchPanel,
   hideSearchPanel,
+  refreshPanel,
 } = panelSlice.actions;
+
+// Aliases for backward compatibility
+export const setFilesLoading = setLoading;
+export const setFilesError = setError;
 
 export default panelSlice.reducer;

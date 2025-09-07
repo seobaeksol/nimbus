@@ -2,7 +2,7 @@ import { FileOperationCommand } from "../../base/FileOperationCommand";
 import { CommandMetadata, ExecutionContext } from "../../types";
 import { DialogService } from "../../services/DialogService";
 import { createDirectory } from "../../ipc/file";
-import { navigateToPath } from "@/store/slices/panelSlice";
+import { navigateToPath, refreshPanel } from "@/store/slices/panelSlice";
 import { AppDispatch } from "@/store";
 
 export type CreateFolderCommandOptions = {
@@ -63,6 +63,9 @@ export class CreateFolderCommand extends FileOperationCommand<CreateFolderComman
           navigateToPath({ panelId: context.panelId, path: targetDir })
         );
       }
+
+      // Refresh the panel to show the new folder
+      this.dispatch(refreshPanel({ panelId: context.panelId }));
 
       // Show success notification
       if (options?.showNotifications) {

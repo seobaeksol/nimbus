@@ -3,6 +3,7 @@ import { CommandMetadata, ExecutionContext } from "../../types";
 import { DialogService } from "../../services/DialogService";
 import { renameItem } from "../../ipc/file";
 import { AppDispatch } from "@/store";
+import { refreshPanel } from "@/store/slices/panelSlice";
 
 export type RenameFileCommandOptions = {
   newName?: string;
@@ -55,7 +56,8 @@ export class RenameFileCommand extends FileOperationCommand<RenameFileCommandOpt
 
       await renameItem(file.path, newName);
 
-      // TODO: Get current path from context and refresh
+      // Refresh the panel to show the renamed item
+      this.dispatch(refreshPanel({ panelId: context.panelId }));
 
       this.showSuccess(`Renamed "${file.name}" to "${newName}"`);
     }, "Failed to rename file");

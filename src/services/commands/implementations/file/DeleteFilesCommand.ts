@@ -7,6 +7,7 @@ import {
   removeProgressIndicator,
   selectFiles,
   updateProgressIndicator,
+  refreshPanel,
 } from "@/store/slices/panelSlice";
 import { deleteItem } from "../../ipc/file";
 
@@ -101,10 +102,9 @@ export class DeleteFilesCommand extends FileOperationCommand {
         }, 3000);
       }
 
-      // Clear selection and refresh
+      // Clear selection and refresh panel
       this.dispatch(selectFiles({ panelId: context.panelId, fileNames: [] }));
-
-      // TODO: Get current path from context and refresh
+      this.dispatch(refreshPanel({ panelId: context.panelId }));
 
       const fileWord = selectedFiles.length === 1 ? "item" : "items";
       this.showSuccess(`Deleted ${selectedFiles.length} ${fileWord}`);
