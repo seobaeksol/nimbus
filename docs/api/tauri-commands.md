@@ -4,6 +4,16 @@
 
 Tauri commands provide the bridge between the React frontend and Rust backend. All commands are asynchronous and use JSON serialization for data exchange. Commands are organized by functionality and follow consistent patterns for error handling and data validation.
 
+**🟢 Implementation Status**: Core file operations are **FULLY INTEGRATED** and production-ready as of Phase 8.
+
+**Architecture Flow**: 
+```
+Frontend Commands → IPC Layer → Tauri Backend → File System
+     ↓                ↓            ↓              ↓
+Modern Command    Type-Safe     Production    Comprehensive
+   Pattern        Interfaces      Rust         Error Handling
+```
+
 ## File System Commands
 
 ### Directory Operations
@@ -64,98 +74,152 @@ pub async fn get_directory_size(path: String) -> Result<DirectorySizeInfo, FileE
 
 ### File Operations
 
-#### `copy_files`
-Copies files from source to destination.
+**🟢 Status**: All core file operations are **FULLY IMPLEMENTED** and integrated with frontend commands.
+
+#### `copy_item` ✅
+Copies a single file or directory from source to destination.
 
 ```rust
 #[tauri::command]
-pub async fn copy_files(
-    sources: Vec<String>,
-    destination: String,
-    options: CopyOptions
-) -> Result<String, FileError>
+pub async fn copy_item(
+    src_path: String,
+    dst_path: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
 ```
 
 **Parameters:**
-- `sources` (string[]): Array of source file paths
-- `destination` (string): Destination directory path
-- `options` (CopyOptions): Copy operation options
+- `src_path` (string): Source file or directory path
+- `dst_path` (string): Destination path
 
-**CopyOptions:**
+**Features:**
+- ✅ **Path Validation**: Prevents directory traversal attacks
+- ✅ **Permission Checking**: Validates read/write permissions
+- ✅ **Conflict Detection**: Checks for existing destination files
+- ✅ **Recursive Copy**: Supports directory copying with all contents
+- ✅ **Error Handling**: Structured error types with detailed context
+
+**Frontend Integration:**
 ```typescript
-interface CopyOptions {
-    overwritePolicy: 'ask' | 'overwrite' | 'skip' | 'rename';
-    preserveTimestamps: boolean;
-    verifyIntegrity: boolean;
-    showProgress: boolean;
-}
+import { copyItem } from '@/services/commands/ipc/file';
+
+// Used by PasteFilesCommand for copy operations
+await copyItem('/source/file.txt', '/destination/file.txt');
 ```
 
-**Returns:**
-- `string`: Operation ID for tracking progress
-
-**Example:**
-```typescript
-const operationId = await invoke<string>('copy_files', {
-    sources: ['/path/to/file1.txt', '/path/to/file2.txt'],
-    destination: '/path/to/destination/',
-    options: {
-        overwritePolicy: 'ask',
-        preserveTimestamps: true,
-        verifyIntegrity: false,
-        showProgress: true
-    }
-});
-```
-
-#### `move_files`
-Moves files from source to destination.
+#### `move_item` ✅
+Moves/renames a file or directory from source to destination.
 
 ```rust
 #[tauri::command]
-pub async fn move_files(
-    sources: Vec<String>,
-    destination: String,
-    options: MoveOptions
-) -> Result<String, FileError>
+pub async fn move_item(
+    src_path: String,
+    dst_path: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
 ```
 
-Similar parameters and options to `copy_files`.
+**Parameters:**
+- `src_path` (string): Source file or directory path
+- `dst_path` (string): Destination path
 
-#### `delete_files`
-Deletes files or directories.
-
-```rust
-#[tauri::command]
-pub async fn delete_files(
-    paths: Vec<String>,
-    options: DeleteOptions
-) -> Result<String, FileError>
-```
-
-**DeleteOptions:**
+**Frontend Integration:**
 ```typescript
-interface DeleteOptions {
-    useTrash: boolean;        // Move to trash instead of permanent deletion
-    force: boolean;           // Delete read-only files
-    recursive: boolean;       // Delete directories recursively
-    secure: boolean;          // Secure deletion (overwrite data)
-}
+// Used by PasteFilesCommand for cut operations
+await moveItem('/source/file.txt', '/destination/file.txt');
 ```
 
-#### `rename_file`
-Renames a file or directory.
+#### `delete_item` ✅
+Deletes a single file or directory.
 
 ```rust
 #[tauri::command]
-pub async fn rename_file(
+pub async fn delete_item(
+    path: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
+```
+
+**Parameters:**
+- `path` (string): Path to file or directory to delete
+
+**Features:**
+- ✅ **Read-only Protection**: Prevents deletion of read-only items
+- ✅ **Recursive Deletion**: Handles directory deletion with all contents
+- ✅ **Permission Validation**: Checks deletion permissions before operation
+- ✅ **Safe Deletion**: Comprehensive validation and error handling
+
+**Frontend Integration:**
+```typescript
+// Used by DeleteFilesCommand
+await deleteItem('/path/to/file.txt');
+```
+
+#### `rename_item` ✅
+Renames a file or directory in place.
+
+```rust
+#[tauri::command]
+pub async fn rename_item(
     old_path: String,
-    new_name: String
-) -> Result<String, FileError>
+    new_name: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
 ```
 
-**Returns:**
-- `string`: New file path after rename
+**Parameters:**
+- `old_path` (string): Current path to the item
+- `new_name` (string): New name for the item
+
+**Frontend Integration:**
+```typescript
+// Used by RenameFileCommand
+await renameItem('/path/to/oldname.txt', 'newname.txt');
+```
+
+#### `create_file` ✅
+Creates a new empty file.
+
+```rust
+#[tauri::command]
+pub async fn create_file(
+    path: String,
+    name: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
+```
+
+**Parameters:**
+- `path` (string): Parent directory path
+- `name` (string): Name of the new file
+
+**Frontend Integration:**
+```typescript
+// Used by CreateFileCommand
+await createFile('/path/to/directory', 'newfile.txt');
+```
+
+#### `create_directory` ✅
+Creates a new directory.
+
+```rust
+#[tauri::command]
+pub async fn create_directory(
+    path: String,
+    name: String,
+    filesystem_state: State<'_, FileSystemState>
+) -> CommandResult<()>
+```
+
+**Parameters:**
+- `path` (string): Parent directory path
+- `name` (string): Name of the new directory
+
+**Frontend Integration:**
+```typescript
+// Used by CreateFolderCommand
+await createDirectory('/path/to/parent', 'New Folder');
+```
 
 ### File Information
 
