@@ -1,0 +1,162 @@
+[package]
+name = "nimbus"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# ─────────────────────────────────────────────────────────────
+# UI
+# ─────────────────────────────────────────────────────────────
+
+gpui = { git = "https://github.com/zed-industries/zed" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit"] }
+gpui-component = { git = "https://github.com/longbridge/gpui-component" }
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component" }
+
+# ─────────────────────────────────────────────────────────────
+# File system
+# ─────────────────────────────────────────────────────────────
+
+# Use std::fs::read_dir for the current directory.
+# Use these crates only for recursive search or directory size calculation.
+jwalk = "0.8.1"
+walkdir = "2.5.0"
+
+# Monitor file creation, modification, deletion, and rename events
+notify = "8.2.0"
+notify-debouncer-full = "0.7.0"
+
+# Move file and directories to the operating system trash.
+trash = "5"
+
+# Read and modify file timestamp.
+filetime = "0.2"
+
+# ─────────────────────────────────────────────────────────────
+# File type and metadata
+# ─────────────────────────────────────────────────────────────
+
+# Detect MIME types based on file extensions.
+mime_guess = "2.0.5"
+
+# Detect file types based on file signatures.
+infer = "0.19.0"
+
+# Format file sizes in a human-readable form.
+humansize = "2"
+
+# ─────────────────────────────────────────────────────────────
+# Thumbnail and image processing
+# ─────────────────────────────────────────────────────────────
+
+# Disable default features and enable only the formats used by the application
+# to reduce compilation time and binary size
+image = {
+    version = "0.25.10",
+    default-features = false,
+    features = [
+        "png",
+        "jpeg",
+        "gif",
+        "webp",
+        "bmp",
+        "ico",
+        "tiff",
+    ],
+}
+
+# ─────────────────────────────────────────────────────────────
+# Search and filtering
+# ─────────────────────────────────────────────────────────────
+
+# Handle .gitignore rules and hidden-file filtering.
+ignore = "0.4"
+
+# Support glob patterns such as *.rs and *.{png,jpg}.
+globset = "0.4"
+
+# High-performance fuzzy matching used by editors such as Zed and Helix.
+nucleo-matcher = "0.3"
+
+# ─────────────────────────────────────────────────────────────
+# Asynchronous and parallel work
+# ─────────────────────────────────────────────────────────────
+
+tokio = {
+    version = "1.52.3",
+    features = [
+        "rt-multi-thread",
+        "sync",
+        "time",
+        "fs",
+        "macros",
+    ],
+}
+
+rayon = "1.12.0"
+
+# ─────────────────────────────────────────────────────────────
+# Open files with the system application
+# ─────────────────────────────────────────────────────────────
+
+opener = "0.8"
+
+# ─────────────────────────────────────────────────────────────
+# Error handling and logging
+# ─────────────────────────────────────────────────────────────
+
+anyhow = "1.0.103"
+thiserror = "2.0.18"
+
+tracing = "0.1.44"
+tracing-subscriber = {
+    version = "0.3",
+    features = [
+        "fmt",
+        "env-filter",
+    ],
+}
+
+# ─────────────────────────────────────────────────────────────
+# Windows integration
+# ─────────────────────────────────────────────────────────────
+
+[target.'cfg(windows)'.dependencies]
+windows = {
+    version = "0.62.2",
+    features = [
+        # COM initialization and fundamental Windows types
+        "Win32_Foundation",
+        "Win32_System_Com",
+        "Win32_System_Ole",
+
+        # Shell icons, known folders, and file lauching
+        "Win32_UI_Shell",
+        "Win32_UI_Shell_Common",
+        "Win32_UI_WindowsAndMessaging",
+
+        # File attributes, file identifiers, and drive information
+        "Win32_Storage_FileSystem",
+
+        # Icon and bitmap processing
+        "Win32_Graphics_Gdi",
+
+        # String, memory, registry, and variant handling
+        "Win32_System_Memory",
+        "Win32_System_Registry",
+        "Win32_System_Variant",
+    ],
+}
+
+[profile.dev]
+# Keep application code unoptimized for faster incremental builds.
+opt-level = 0
+
+[profile.dev.package."*"]
+# Optimize dependencies in development builds to improve GPUI redering performance.
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
